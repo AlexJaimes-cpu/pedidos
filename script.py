@@ -1,120 +1,64 @@
 import pandas as pd
 import streamlit as st
 
-# Configuración de la aplicación
-st.title("Procesar y Formatear Archivos de Ventas y Compras")
+st.title("Subir y Procesar Archivos de Ventas y Compras")
 
-# Subir archivo de ventas
-archivo_ventas = st.file_uploader("Sube el archivo de ventas inicial:", type=["csv"])
-# Subir archivo de compras
-archivo_compras = st.file_uploader("Sube el archivo de compras inicial:", type=["csv"])
+# Cargar archivo de ventas
+archivo_ventas = st.file_uploader("Sube tu archivo de ventas en formato CSV:", type=["csv"])
+# Cargar archivo de compras
+archivo_compras = st.file_uploader("Sube tu archivo de compras en formato CSV:", type=["csv"])
 
-if archivo_ventas:
+if archivo_ventas and archivo_compras:
     try:
-        # Leer archivo de ventas
-        ventas_inicial = pd.read_csv(archivo_ventas)
-
-        # Mostrar vista previa del archivo original de ventas
-        st.write("Vista previa del archivo de ventas subido:")
-        st.dataframe(ventas_inicial.head())
-
-        # Renombrar y limpiar columnas de ventas
-        columnas_renombradas_ventas = {
-            "Codigo": "Codigo",
-            "Nombre": "Nombre",
-            "market samaria Vendido": "market samaria Vendido",
-            "market playa dormida Vendido": "market playa dormida Vendido",
-            "market two towers Vendido": "market two towers Vendido",
-            "market samaria Inventario": "market samaria Inventario",
-            "market playa dormida Inventario": "market playa dormida Inventario",
-            "market two towers Inventario": "market two towers Inventario",
-            "Total en lista": "Total en lista",
-            "Descuentos": "Descuentos",
-            "Total Neto": "Total Neto",
-            "Devoluciones": "Devoluciones",
-            "Total ajustado": "Total ajustado",
-            "Costo": "Costo",
-            "Ganancia": "Ganancia"
-        }
-        ventas_inicial.rename(columns=columnas_renombradas_ventas, inplace=True)
-
-        # Limpiar columnas numéricas en ventas
-        columnas_a_limpiar_ventas = [
-            "Total en lista", "Descuentos", "Total Neto", 
-            "Devoluciones", "Total ajustado", "Costo", 
-            "Ganancia", "market samaria Inventario", 
-            "market playa dormida Inventario", 
-            "market two towers Inventario"
+        # Procesar archivo de ventas
+        ventas = pd.read_csv(archivo_ventas)
+        columnas_ventas_a_limpiar = [
+            "Total en lista", "Descuentos", "Total Neto",
+            "Devoluciones", "Total ajustado", "Costo",
+            "Comision", "Ganancia"
         ]
-        for columna in columnas_a_limpiar_ventas:
-            if columna in ventas_inicial.columns:
-                ventas_inicial[columna] = pd.to_numeric(
-                    ventas_inicial[columna].str.replace(r"[^\d.-]", "", regex=True),
+
+        # Limpiar columnas de ventas (eliminar caracteres no numéricos)
+        for columna in columnas_ventas_a_limpiar:
+            if columna in ventas.columns:
+                ventas[columna] = pd.to_numeric(
+                    ventas[columna].astype(str).str.replace(r"[^\d.-]", "", regex=True),
                     errors="coerce"
                 )
 
-        # Guardar el archivo limpio de ventas
-        nombre_archivo_ventas_limpio = "archivo_limpio.csv"
-        ventas_inicial.to_csv(nombre_archivo_ventas_limpio, index=False)
+        # Limpiar columnas de inventario en ventas
+        for columna in ["market samaria Inventario", "market playa dormida Inventario", "market two towers Inventario"]:
+            if columna in ventas.columns:
+                ventas[columna] = pd.to_numeric(
+                    ventas[columna].astype(str).str.replace(" inv", "", regex=False),
+                    errors="coerce"
+                )
 
-        # Confirmación de éxito para ventas
-        st.success(f"Archivo de ventas procesado y guardado como '{nombre_archivo_ventas_limpio}'")
+        # Guardar archivo limpio de ventas
+        ventas.to_csv("archivo_limpio.csv", index=False)
+        st.success("Archivo de ventas limpio generado como 'archivo_limpio.csv'")
+
+        # Procesar archivo de compras
+        compras = pd.read_csv(archivo_compras)
+        columnas_compras_a_limpiar = ["Precio", "Otros Impuestos", "IVA %", "IVA $", "Total Unitario", "Cantidad", "Total"]
+
+        # Limpiar columnas de compras
+        for columna in columnas_compras_a_limpiar:
+            if columna in compras.columns:
+                compras[columna] = pd.to_numeric(
+                    compras[columna].astype(str).str.replace(r"[^\d.-]", "", regex=True),
+                    errors="coerce"
+                )
+
+        # Guardar archivo limpio de compras
+        compras.to_csv("postobon_sas_limpio.csv", index=False)
+        st.success("Archivo de compras limpio generado como 'postobon_sas_limpio.csv'")
+
+        # Mostrar ejemplos de datos limpios
         st.write("Vista previa del archivo de ventas limpio:")
-        st.dataframe(ventas_inicial.head())
-
-    except Exception as e:
-        st.error(f"Error procesando el archivo de ventas: {e}")
-
-if archivo_compras:
-    try:
-        # Leer archivo de compras
-        compras_inicial = pd.read_csv(archivo_compras)
-
-        # Mostrar vista previa del archivo original de compras
-        st.write("Vista previa del archivo de compras subido:")
-        st.dataframe(compras_inicial.head())
-
-        # Renombrar y limpiar columnas de compras
-        columnas_renombradas_compras = {
-            "Fecha": "Fecha",
-            "Punto": "Punto",
-            "Codigo": "Codigo",
-            "Producto": "Producto",
-            "Factura": "Factura",
-            "Precio": "Precio",
-            "Otros Impuestos": "Otros Impuestos",
-            "IVA %": "IVA %",
-            "IVA $": "IVA $",
-            "Total Unitario": "Total Unitario",
-            "Cantidad": "Cantidad",
-            "Total": "Total"
-        }
-        compras_inicial.rename(columns=columnas_renombradas_compras, inplace=True)
-
-        # Limpiar columnas numéricas en compras
-        columnas_a_limpiar_compras = [
-            "Precio", "Otros Impuestos", "IVA %", "IVA $", 
-            "Total Unitario", "Cantidad", "Total"
-        ]
-        for columna in columnas_a_limpiar_compras:
-            if columna in compras_inicial.columns:
-                compras_inicial[columna] = pd.to_numeric(
-                    compras_inicial[columna].str.replace(r"[^\d.-]", "", regex=True),
-                    errors="coerce"
-                )
-
-        # Convertir la columna de fechas al formato correcto
-        if "Fecha" in compras_inicial.columns:
-            compras_inicial["Fecha"] = pd.to_datetime(compras_inicial["Fecha"], errors="coerce", format="%d/%m/%y")
-
-        # Guardar el archivo limpio de compras
-        nombre_archivo_compras_limpio = "postobon_sas_limpio.csv"
-        compras_inicial.to_csv(nombre_archivo_compras_limpio, index=False)
-
-        # Confirmación de éxito para compras
-        st.success(f"Archivo de compras procesado y guardado como '{nombre_archivo_compras_limpio}'")
+        st.dataframe(ventas.head())
         st.write("Vista previa del archivo de compras limpio:")
-        st.dataframe(compras_inicial.head())
+        st.dataframe(compras.head())
 
     except Exception as e:
-        st.error(f"Error procesando el archivo de compras: {e}")
+        st.error(f"Error procesando los archivos: {e}")
