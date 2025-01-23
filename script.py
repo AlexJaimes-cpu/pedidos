@@ -26,9 +26,9 @@ def exportar_a_pdf(dataframe, punto_venta, fecha_pedido, fecha_entrega, total_ge
 
     # Datos del pedido
     for _, row in dataframe.iterrows():
-        pdf.cell(60, 10, row["Producto"], 1, 0, "L")
+        pdf.cell(60, 10, row["Nombre"], 1, 0, "L")
         pdf.cell(30, 10, str(row["Unidades"]), 1, 0, "R")
-        pdf.cell(30, 10, f"${row['Precio Compra']:.2f}", 1, 0, "R")
+        pdf.cell(30, 10, f"${row['Total Unitario']:.2f}", 1, 0, "R")
         pdf.cell(40, 10, f"${row['Total x Ref']:.2f}", 1, 1, "R")
 
     pdf.ln(10)
@@ -47,10 +47,17 @@ if archivo_ventas and archivo_compras:
     compras = pd.read_csv(archivo_compras)
     
     # Verificar columnas necesarias
-    columnas_requeridas = ["Producto", "Cantidad", "Total Unitario", "Fecha", "Punto"]
-    for columna in columnas_requeridas:
-        if columna not in ventas.columns or columna not in compras.columns:
-            st.error(f"Falta la columna '{columna}' en uno de los archivos.")
+    columnas_requeridas_ventas = ["Nombre", "Cantidad", "Fecha", "Punto"]
+    columnas_requeridas_compras = ["Producto", "Total Unitario", "Fecha"]
+    
+    for columna in columnas_requeridas_ventas:
+        if columna not in ventas.columns:
+            st.error(f"Falta la columna '{columna}' en el archivo de ventas.")
+            st.stop()
+    
+    for columna in columnas_requeridas_compras:
+        if columna not in compras.columns:
+            st.error(f"Falta la columna '{columna}' en el archivo de compras.")
             st.stop()
     
     st.success("Carga de archivos correcta.")
@@ -73,25 +80,24 @@ if archivo_ventas and archivo_compras:
         st.write(f"Número de días en el rango seleccionado: {dias_rango} días")
 
         # Filtrar datos de ventas y compras
-        ventas = ventas[(ventas["Punto"] == punto_venta) & 
-                        (ventas["Fecha"] >= str(rango_fechas[0])) & 
-                        (ventas["Fecha"] <= str(rango_fechas[1]))]
+        ventas_filtradas = ventas[
+            (ventas["Punto"] == punto_venta) & 
+            (ventas["Fecha"] >= str(rango_fechas[0])) & 
+            (ventas["Fecha"] <= str(rango_fechas[1]))
+        ]
 
-        compras["Total Unitario"] = compras["Total Unitario"].astype(float)
         compras_filtradas = compras[compras["Fecha"] <= str(rango_fechas[1])]
         compras_filtradas = compras_filtradas.sort_values(by="Fecha", ascending=False).drop_duplicates("Producto")
         
         # Cruzar productos vendidos y comprados
-        productos_comunes = ventas.merge(compras_filtradas, on="Producto", how="inner")
+        productos_comunes = ventas_filtradas.merge(compras_filtradas, left_on="Nombre", right_on="Producto", how="inner")
         productos_comunes["Inventario"] = productos_comunes["Cantidad_y"] - productos_comunes["Cantidad_x"]
         productos_comunes["Inventario"] = productos_comunes["Inventario"].apply(lambda x: max(x, 0))
         productos_comunes["Unidades"] = productos_comunes["Cantidad_x"] - productos_comunes["Inventario"]
         productos_comunes["Total x Ref"] = productos_comunes["Unidades"] * productos_comunes["Total Unitario"]
         
         # Mostrar tabla editable
-        productos_comunes["Inventario"] = productos_comunes["Inventario"].apply(lambda x: f"{x:.2f}")
-        productos_comunes["Unidades"] = productos_comunes["Unidades"].apply(lambda x: f"{x:.2f}")
-        st.dataframe(productos_comunes[["Producto", "Cantidad_x", "Inventario", "Unidades", "Total Unitario", "Total x Ref"]])
+        st.dataframe(productos_comunes[["Nombre", "Cantidad_x", "Inventario", "Unidades", "Total Unitario", "Total x Ref"]])
         
         # Resumen
         st.subheader("Resumen del Pedido")
@@ -102,7 +108,7 @@ if archivo_ventas and archivo_compras:
         # Botón de exportar a PDF
         if st.button("Exportar Pedido a PDF"):
             exportar_a_pdf(
-                productos_comunes[["Producto", "Unidades", "Total Unitario", "Total x Ref"]],
+                productos_comunes[["Nombre", "Unidades", "Total Unitario", "Total x Ref"]],
                 punto_venta,
                 fecha_pedido,
                 fecha_entrega,
