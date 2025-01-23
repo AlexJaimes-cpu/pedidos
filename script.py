@@ -1,118 +1,69 @@
 import pandas as pd
 import streamlit as st
 
-# Cargar los archivos
+# Configuración de la aplicación
+st.title("Formulario de Pedido")
+
+# Cargar archivos
 archivo_ventas = "archivo_limpio.csv"
 archivo_compras = "postobon_sas_limpio.csv"
 
-# Leer los archivos
 ventas = pd.read_csv(archivo_ventas)
 compras = pd.read_csv(archivo_compras)
 
-# Convertir columnas necesarias a valores numéricos
-for columna in ["market samaria Inventario", "market playa dormida Inventario", "market two towers Inventario"]:
-    if columna in ventas.columns:
-        ventas[columna] = ventas[columna].str.replace(" inv", "").astype(float)
+# Limpieza y preprocesamiento de los datos
+ventas["Nombre"] = ventas["Nombre"].str.strip()
+compras["Producto"] = compras["Producto"].str.strip()
 
-for columna in ["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"]:
-    if columna in ventas.columns:
-        ventas[columna] = ventas[columna].astype(float)
+# Filtrar productos comunes entre ventas y compras
+productos_comunes = ventas.merge(
+    compras, left_on="Nombre", right_on="Producto", how="inner"
+)
 
-# Convertir "Total Unitario" a numérico solo si es de tipo string
-if compras["Total Unitario"].dtype == "object":
-    compras["Total Unitario"] = compras["Total Unitario"].str.replace(r"[^\d.-]", "", regex=True).astype(float)
-else:
-    compras["Total Unitario"] = compras["Total Unitario"].astype(float)
+# Procesar Total Unitario
+productos_comunes["Precio Compra"] = compras.groupby("Producto")["Total Unitario"].transform("last")
+productos_comunes["Precio Compra"] = productos_comunes["Precio Compra"].fillna(0)
 
-# Configurar la aplicación Streamlit
-st.title("Formulario de Pedidos")
-
-# Seleccionar punto de venta
-punto_de_venta = st.selectbox("Selecciona el punto de venta:", ["Market Samaria", "Market Playa Dormida", "Market Two Towers"])
-
-# Mapeo entre puntos de venta y columnas correspondientes
-mapeo_punto_venta = {
-    "Market Samaria": ("market samaria Vendido", "market samaria Inventario"),
-    "Market Playa Dormida": ("market playa dormida Vendido", "market playa dormida Inventario"),
-    "Market Two Towers": ("market two towers Vendido", "market two towers Inventario"),
-}
-
-columna_venta, columna_inventario = mapeo_punto_venta[punto_de_venta]
-
-# Seleccionar fechas
-fecha_pedido = st.date_input("Selecciona la fecha del pedido:")
-fecha_entrega = st.date_input("Selecciona la fecha de entrega (opcional):")
-fecha_inicio = st.date_input("Fecha de inicio:", value=None)
-fecha_fin = st.date_input("Fecha de fin:", value=None)
-
-# Calcular el rango de días
+# Selección del rango de fechas
+fecha_inicio = st.date_input("Fecha de inicio:")
+fecha_fin = st.date_input("Fecha de fin:")
 if fecha_inicio and fecha_fin:
     rango_dias = (fecha_fin - fecha_inicio).days + 1
-    if rango_dias <= 0:
-        st.error("El rango de fechas no es válido. Por favor, selecciona fechas válidas.")
+    if rango_dias > 0:
+        st.write(f"El rango de días seleccionado es: **{rango_dias} días**")
+        # Calcular ventas promedio diarias
+        productos_comunes["Ventas Diarias"] = productos_comunes["market samaria Vendido"] / 30
+        productos_comunes["Ventas en Rango"] = productos_comunes["Ventas Diarias"] * rango_dias
     else:
-        st.write(f"**Número de días en el rango seleccionado:** {rango_dias}")
+        st.error("El rango de fechas no es válido.")
 
-        # Filtrar productos comunes entre ventas y compras
-        productos_comunes = ventas[ventas["Codigo"].isin(compras["Codigo"])]
-        
-        # Calcular las ventas promedio diarias y totales en el rango de días
-        productos_comunes["Ventas Promedio Diario"] = productos_comunes[columna_venta] / 30
-        productos_comunes["Ventas Totales Rango"] = productos_comunes["Ventas Promedio Diario"] * rango_dias
-        
-        # Calcular inventario como compras menos ventas, asegurando que sea >= 0
-        productos_comunes = productos_comunes.merge(compras, on="Codigo", suffixes=("_ventas", "_compras"))
-        productos_comunes["Inventario Calculado"] = productos_comunes["Cantidad"] - productos_comunes["Ventas Totales Rango"]
-        productos_comunes["Inventario Calculado"] = productos_comunes["Inventario Calculado"].apply(lambda x: max(x, 0))
+# Calcular inventario y pedido
+productos_comunes["Inventario Calculado"] = productos_comunes["market samaria Inventario"] - productos_comunes["Ventas en Rango"]
+productos_comunes["Inventario Calculado"] = productos_comunes["Inventario Calculado"].clip(lower=0)
 
-        # Calcular el pedido como ventas menos inventario calculado
-        productos_comunes["Pedido"] = productos_comunes["Ventas Totales Rango"] - productos_comunes["Inventario Calculado"]
-        productos_comunes["Pedido"] = productos_comunes["Pedido"].apply(lambda x: max(x, 0))
+# Interacción con el usuario: Editar inventario y pedido
+productos_comunes["Inventario Actual"] = 0
+productos_comunes["Pedido"] = 0
 
-        # Obtener el precio más reciente de compras
-        productos_comunes["Precio Compra"] = productos_comunes.groupby("Codigo")["Total Unitario"].transform("last")
+for idx, row in productos_comunes.iterrows():
+    productos_comunes.at[idx, "Inventario Actual"] = st.number_input(
+        f"Inventario para {row['Nombre']}:",
+        min_value=0, value=int(row["Inventario Calculado"]),
+        key=f"inv_{idx}"
+    )
+    productos_comunes.at[idx, "Pedido"] = st.number_input(
+        f"Pedido para {row['Nombre']}:",
+        min_value=0, value=int(row["Ventas en Rango"] - row["Inventario Calculado"]),
+        key=f"pedido_{idx}"
+    )
 
-        # Calcular el total del pedido
-        productos_comunes["Total Pedido"] = productos_comunes["Pedido"] * productos_comunes["Precio Compra"]
+# Calcular total del pedido
+productos_comunes["Total Pedido"] = productos_comunes["Pedido"] * productos_comunes["Precio Compra"]
 
-        # Permitir al usuario editar inventario y pedido manualmente
-        for idx, row in productos_comunes.iterrows():
-            productos_comunes.at[idx, "Inventario Calculado"] = st.number_input(
-                f"Inventario Actual para {row['Nombre']}",
-                min_value=0.0,
-                value=row["Inventario Calculado"],
-                step=1.0
-            )
-            productos_comunes.at[idx, "Pedido"] = st.number_input(
-                f"Pedido para {row['Nombre']}",
-                min_value=0.0,
-                value=row["Pedido"],
-                step=1.0
-            )
+# Mostrar resultados en una tabla
+st.write("Resumen del Pedido:")
+st.dataframe(productos_comunes[["Nombre", "Inventario Actual", "Pedido", "Precio Compra", "Total Pedido"]])
 
-        # Mostrar los resultados
-        resumen = productos_comunes[["Nombre", "Ventas Totales Rango", "Inventario Calculado", "Pedido", "Precio Compra", "Total Pedido"]]
-        resumen = resumen[resumen["Pedido"] > 0]  # Mostrar solo productos con pedido mayor a 0
-        st.write("Resumen de Inventario y Ventas")
-        st.dataframe(resumen)
-
-        # Calcular el total general del pedido
-        total_general = resumen["Total Pedido"].sum()
-        st.write(f"**Total del Pedido: ${total_general:,.2f}**")
-
-        # Botón para exportar el pedido a PDF
-        if st.button("Exportar Pedido a PDF"):
-            from fpdf import FPDF
-
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-
-            pdf.cell(200, 10, txt="Resumen de Pedido", ln=True, align="C")
-            pdf.ln(10)
-            for i, row in resumen.iterrows():
-                pdf.cell(0, 10, txt=f"{row['Nombre']}: {row['Pedido']} unidades - Total: ${row['Total Pedido']:,.2f}", ln=True)
-
-            pdf.cell(0, 10, txt=f"Total del Pedido: ${total_general:,.2f}", ln=True)
-            pdf.output("pedido.pdf")
-            st.success("El pedido ha sido exportado a pedido.pdf")
+# Mostrar total general del pedido
+total_general = productos_comunes["Total Pedido"].sum()
+st.write(f"**Total General del Pedido: ${total_general:,.2f}**")
