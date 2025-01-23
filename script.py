@@ -18,8 +18,11 @@ for columna in ["market samaria Vendido", "market playa dormida Vendido", "marke
     if columna in ventas.columns:
         ventas[columna] = ventas[columna].astype(float)
 
-# Convertir Total Unitario en compras a numérico
-compras["Total Unitario"] = compras["Total Unitario"].str.replace(r"[^\d.-]", "", regex=True).astype(float)
+# Convertir "Total Unitario" a numérico solo si es de tipo string
+if compras["Total Unitario"].dtype == "object":
+    compras["Total Unitario"] = compras["Total Unitario"].str.replace(r"[^\d.-]", "", regex=True).astype(float)
+else:
+    compras["Total Unitario"] = compras["Total Unitario"].astype(float)
 
 # Configurar la aplicación Streamlit
 st.title("Formulario de Pedidos")
