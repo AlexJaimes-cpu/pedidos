@@ -56,13 +56,17 @@ if fecha_inicio and fecha_fin:
         # Filtrar productos comunes entre ventas y compras
         productos_comunes = ventas[ventas["Codigo"].isin(compras["Codigo"])]
         
+        # Calcular las ventas promedio diarias y totales en el rango de días
+        productos_comunes["Ventas Promedio Diario"] = productos_comunes[columna_venta] / 30
+        productos_comunes["Ventas Totales Rango"] = productos_comunes["Ventas Promedio Diario"] * rango_dias
+        
         # Calcular inventario como compras menos ventas, asegurando que sea >= 0
         productos_comunes = productos_comunes.merge(compras, on="Codigo", suffixes=("_ventas", "_compras"))
-        productos_comunes["Inventario Calculado"] = productos_comunes["Cantidad"] - productos_comunes[columna_venta]
+        productos_comunes["Inventario Calculado"] = productos_comunes["Cantidad"] - productos_comunes["Ventas Totales Rango"]
         productos_comunes["Inventario Calculado"] = productos_comunes["Inventario Calculado"].apply(lambda x: max(x, 0))
 
         # Calcular el pedido como ventas menos inventario calculado
-        productos_comunes["Pedido"] = productos_comunes[columna_venta] - productos_comunes["Inventario Calculado"]
+        productos_comunes["Pedido"] = productos_comunes["Ventas Totales Rango"] - productos_comunes["Inventario Calculado"]
         productos_comunes["Pedido"] = productos_comunes["Pedido"].apply(lambda x: max(x, 0))
 
         # Obtener el precio más reciente de compras
@@ -71,8 +75,23 @@ if fecha_inicio and fecha_fin:
         # Calcular el total del pedido
         productos_comunes["Total Pedido"] = productos_comunes["Pedido"] * productos_comunes["Precio Compra"]
 
+        # Permitir al usuario editar inventario y pedido manualmente
+        for idx, row in productos_comunes.iterrows():
+            productos_comunes.at[idx, "Inventario Calculado"] = st.number_input(
+                f"Inventario Actual para {row['Nombre']}",
+                min_value=0.0,
+                value=row["Inventario Calculado"],
+                step=1.0
+            )
+            productos_comunes.at[idx, "Pedido"] = st.number_input(
+                f"Pedido para {row['Nombre']}",
+                min_value=0.0,
+                value=row["Pedido"],
+                step=1.0
+            )
+
         # Mostrar los resultados
-        resumen = productos_comunes[["Nombre", columna_venta, "Inventario Calculado", "Pedido", "Precio Compra", "Total Pedido"]]
+        resumen = productos_comunes[["Nombre", "Ventas Totales Rango", "Inventario Calculado", "Pedido", "Precio Compra", "Total Pedido"]]
         resumen = resumen[resumen["Pedido"] > 0]  # Mostrar solo productos con pedido mayor a 0
         st.write("Resumen de Inventario y Ventas")
         st.dataframe(resumen)
