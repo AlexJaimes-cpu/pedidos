@@ -1,19 +1,25 @@
 import pandas as pd
 import streamlit as st
 
-# Cargar los datos de ventas e inventarios desde archivo_limpio.csv
+# Cargar los archivos
 archivo_ventas = "archivo_limpio.csv"
-ventas = pd.read_csv(archivo_ventas)
+archivo_compras = "postobon_sas_limpio.csv"
 
-# Convertir las columnas de inventario a números (eliminar el texto "inv")
+# Leer los archivos
+ventas = pd.read_csv(archivo_ventas)
+compras = pd.read_csv(archivo_compras)
+
+# Convertir columnas necesarias a valores numéricos
 for columna in ["market samaria Inventario", "market playa dormida Inventario", "market two towers Inventario"]:
     if columna in ventas.columns:
         ventas[columna] = ventas[columna].str.replace(" inv", "").astype(float)
 
-# Convertir columnas de ventas a números
 for columna in ["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"]:
     if columna in ventas.columns:
         ventas[columna] = ventas[columna].astype(float)
+
+# Convertir Total Unitario en compras a numérico
+compras["Total Unitario"] = compras["Total Unitario"].str.replace(r"[^\d.-]", "", regex=True).astype(float)
 
 # Configurar la aplicación Streamlit
 st.title("Formulario de Pedidos")
@@ -36,28 +42,36 @@ fecha_entrega = st.date_input("Selecciona la fecha de entrega (opcional):")
 fecha_inicio = st.date_input("Fecha de inicio:", value=None)
 fecha_fin = st.date_input("Fecha de fin:", value=None)
 
+# Calcular el rango de días
 if fecha_inicio and fecha_fin:
     rango_dias = (fecha_fin - fecha_inicio).days + 1
     if rango_dias <= 0:
         st.error("El rango de fechas no es válido. Por favor, selecciona fechas válidas.")
     else:
-        # Calcular las ventas promedio diarias
-        ventas_promedio = ventas[columna_venta].sum() / 31  # Asumiendo ventas para todo diciembre
-        ventas_totales_rango = ventas_promedio * rango_dias
+        st.write(f"**Número de días en el rango seleccionado:** {rango_dias}")
 
-        # Calcular inventario actual y pedido
-        ventas["Pedido"] = ventas_totales_rango - ventas[columna_inventario]
-        ventas["Pedido"] = ventas["Pedido"].apply(lambda x: max(x, 0))  # Asegurarse de que el pedido no sea negativo
+        # Filtrar productos comunes entre ventas y compras
+        productos_comunes = ventas[ventas["Codigo"].isin(compras["Codigo"])]
+        
+        # Calcular inventario como compras menos ventas, asegurando que sea >= 0
+        productos_comunes = productos_comunes.merge(compras, on="Codigo", suffixes=("_ventas", "_compras"))
+        productos_comunes["Inventario Calculado"] = productos_comunes["Cantidad"] - productos_comunes[columna_venta]
+        productos_comunes["Inventario Calculado"] = productos_comunes["Inventario Calculado"].apply(lambda x: max(x, 0))
 
-        # Tomar el total unitario del archivo más reciente de precios
-        if "Total en lista" in ventas.columns:
-            ventas["Total Unitario"] = pd.to_numeric(ventas["Total en lista"].str.replace(r"[^\d.-]", "", regex=True), errors="coerce")
-            ventas["Total Pedido"] = ventas["Pedido"] * ventas["Total Unitario"]
+        # Calcular el pedido como ventas menos inventario calculado
+        productos_comunes["Pedido"] = productos_comunes[columna_venta] - productos_comunes["Inventario Calculado"]
+        productos_comunes["Pedido"] = productos_comunes["Pedido"].apply(lambda x: max(x, 0))
 
-        # Mostrar los resultados en formato tabla
-        st.write("Resumen de Inventario y Ventas")
-        resumen = ventas[["Nombre", columna_venta, columna_inventario, "Pedido", "Total Unitario", "Total Pedido"]]
+        # Obtener el precio más reciente de compras
+        productos_comunes["Precio Compra"] = productos_comunes.groupby("Codigo")["Total Unitario"].transform("last")
+
+        # Calcular el total del pedido
+        productos_comunes["Total Pedido"] = productos_comunes["Pedido"] * productos_comunes["Precio Compra"]
+
+        # Mostrar los resultados
+        resumen = productos_comunes[["Nombre", columna_venta, "Inventario Calculado", "Pedido", "Precio Compra", "Total Pedido"]]
         resumen = resumen[resumen["Pedido"] > 0]  # Mostrar solo productos con pedido mayor a 0
+        st.write("Resumen de Inventario y Ventas")
         st.dataframe(resumen)
 
         # Calcular el total general del pedido
