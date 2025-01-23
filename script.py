@@ -48,7 +48,7 @@ def exportar_a_pdf(dataframe, punto_venta, fecha_pedido, fecha_entrega, total_ge
     for _, row in dataframe.iterrows():
         pdf.cell(60, 10, row["Producto"], 1, 0, "L")
         pdf.cell(30, 10, str(row["Unidades"]), 1, 0, "R")
-        pdf.cell(30, 10, f"${row['Precio Compra']:.2f}", 1, 0, "R")
+        pdf.cell(30, 10, f"${row['Total Unitario']:.2f}", 1, 0, "R")
         pdf.cell(40, 10, f"${row['Total x Ref']:.2f}", 1, 1, "R")
 
     pdf.ln(10)
@@ -68,7 +68,6 @@ if archivo_ventas and archivo_compras:
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
         st.success("Archivos cargados correctamente.")
-        st.write("")  # Oculta mensajes al avanzar
     except Exception as e:
         st.error(f"Error al limpiar los archivos: {e}")
         st.stop()
@@ -109,8 +108,14 @@ if archivo_ventas and archivo_compras:
         productos_comunes["Unidades"] = productos_comunes["Ventas en Rango"] - productos_comunes["Inventario"]
         productos_comunes["Total x Ref"] = productos_comunes["Unidades"] * productos_comunes["Total Unitario"]
 
+        # Ajustar visualización de inventarios bajos
+        def resaltar_inventario(val):
+            return "background-color: red;" if val < 30 else ""
+
         # Mostrar tabla editable
-        st.dataframe(productos_comunes[["Producto", "Ventas en Rango", "Inventario", "Unidades", "Total Unitario", "Total x Ref"]])
+        styled_table = productos_comunes[["Producto", "Ventas en Rango", "Inventario", "Unidades", "Total Unitario", "Total x Ref"]] \
+            .style.applymap(resaltar_inventario, subset=["Inventario"])
+        st.write(styled_table)
 
         # Resumen
         st.subheader("Resumen del Pedido")
