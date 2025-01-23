@@ -7,8 +7,6 @@ from datetime import date
 def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip()  # Eliminar espacios en los nombres de las columnas
-    df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")  # Asegurarse de que la columna Fecha esté en formato datetime
-    df = df.dropna(subset=["Nombre", "Fecha"])  # Eliminar filas sin Nombre o Fecha
     for col in ["Market Samaria", "Market Playa Dormida", "Market Two Towers"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)  # Convertir ventas a numérico
     return df
@@ -88,25 +86,24 @@ if archivo_ventas and archivo_compras:
         dias_rango = (rango_fechas[1] - rango_fechas[0]).days + 1
         st.write(f"Número de días en el rango seleccionado: {dias_rango} días")
 
-        # Filtrar datos según el rango de fechas
-        ventas_filtradas = ventas_limpias[
-            (ventas_limpias["Fecha"] >= rango_fechas[0]) & 
-            (ventas_limpias["Fecha"] <= rango_fechas[1])
-        ]
+        # Calcular ventas en el rango
+        ventas_limpias["Ventas en Rango"] = (ventas_limpias[punto_venta] / 30) * dias_rango
+
+        # Filtrar compras por rango de fechas
         compras_filtradas = compras_limpias[
             (compras_limpias["Fecha"] >= rango_fechas[0]) & 
             (compras_limpias["Fecha"] <= rango_fechas[1])
         ]
 
         # Calcular inventario y unidades
-        productos_comunes = compras_filtradas.merge(ventas_filtradas, left_on="Producto", right_on="Nombre", how="inner")
-        productos_comunes["Inventario"] = productos_comunes["Cantidad_x"] - productos_comunes[punto_venta]
+        productos_comunes = compras_filtradas.merge(ventas_limpias, left_on="Producto", right_on="Nombre", how="inner")
+        productos_comunes["Inventario"] = productos_comunes["Cantidad"] - productos_comunes["Ventas en Rango"]
         productos_comunes["Inventario"] = productos_comunes["Inventario"].apply(lambda x: max(x, 0))
-        productos_comunes["Unidades"] = productos_comunes[punto_venta] - productos_comunes["Inventario"]
+        productos_comunes["Unidades"] = productos_comunes["Ventas en Rango"] - productos_comunes["Inventario"]
         productos_comunes["Total x Ref"] = productos_comunes["Unidades"] * productos_comunes["Total Unitario"]
 
         # Mostrar tabla editable
-        st.dataframe(productos_comunes[["Producto", punto_venta, "Inventario", "Unidades", "Total Unitario", "Total x Ref"]])
+        st.dataframe(productos_comunes[["Producto", "Ventas en Rango", "Inventario", "Unidades", "Total Unitario", "Total x Ref"]])
         
         # Resumen
         st.subheader("Resumen del Pedido")
