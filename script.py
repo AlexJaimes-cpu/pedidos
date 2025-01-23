@@ -1,13 +1,12 @@
 import pandas as pd
 import streamlit as st
 from fpdf import FPDF
-from datetime import date
+from datetime import date, datetime
 
 # Función para limpiar y procesar el archivo de ventas
 def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip()  # Eliminar espacios en los nombres de las columnas
-    # Convertir columnas de ventas a numérico
     for col in ["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -85,9 +84,13 @@ if archivo_ventas and archivo_compras:
     
     st.subheader("Rango de Fechas")
     rango_fechas = st.date_input("Selecciona el rango de fechas:", value=(date.today(), date.today()))
-    
+
     if len(rango_fechas) == 2:
-        dias_rango = (rango_fechas[1] - rango_fechas[0]).days + 1
+        # Convertir valores del rango de fechas a datetime
+        fecha_inicio = datetime.combine(rango_fechas[0], datetime.min.time())
+        fecha_fin = datetime.combine(rango_fechas[1], datetime.min.time())
+
+        dias_rango = (fecha_fin - fecha_inicio).days + 1
         st.write(f"Número de días en el rango seleccionado: {dias_rango} días")
 
         # Calcular ventas en el rango
@@ -95,8 +98,8 @@ if archivo_ventas and archivo_compras:
 
         # Filtrar compras por rango de fechas
         compras_filtradas = compras_limpias[
-            (compras_limpias["Fecha"] >= rango_fechas[0]) & 
-            (compras_limpias["Fecha"] <= rango_fechas[1])
+            (compras_limpias["Fecha"] >= fecha_inicio) & 
+            (compras_limpias["Fecha"] <= fecha_fin)
         ]
 
         # Calcular inventario y unidades
@@ -108,13 +111,13 @@ if archivo_ventas and archivo_compras:
 
         # Mostrar tabla editable
         st.dataframe(productos_comunes[["Producto", "Ventas en Rango", "Inventario", "Unidades", "Total Unitario", "Total x Ref"]])
-        
+
         # Resumen
         st.subheader("Resumen del Pedido")
         total_general = productos_comunes["Total x Ref"].sum()
         st.write(f"Punto de Venta: {punto_venta}")
         st.write(f"Total del Pedido: ${total_general:.2f}")
-        
+
         # Botón de exportar a PDF
         if st.button("Exportar Pedido a PDF"):
             exportar_a_pdf(
