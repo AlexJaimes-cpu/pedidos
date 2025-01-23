@@ -7,8 +7,12 @@ from datetime import date
 def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip()  # Eliminar espacios en los nombres de las columnas
-    for col in ["Market Samaria", "Market Playa Dormida", "Market Two Towers"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)  # Convertir ventas a numérico
+    # Convertir columnas de ventas a numérico
+    for col in ["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        else:
+            raise KeyError(f"Columna '{col}' no encontrada en el archivo de ventas.")
     return df
 
 # Función para limpiar y procesar el archivo de compras
@@ -72,7 +76,7 @@ if archivo_ventas and archivo_compras:
     # Configuración de campos obligatorios
     punto_venta = st.selectbox(
         "Punto de Venta", 
-        options=["Market Samaria", "Market Playa Dormida", "Market Two Towers"], 
+        options=["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"], 
         help="Selecciona el punto de venta."
     )
     
