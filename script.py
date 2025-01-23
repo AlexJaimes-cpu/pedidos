@@ -56,8 +56,7 @@ if fecha_inicio and fecha_fin:
         for idx, row in ventas.iterrows():
             ventas.at[idx, "Inventario Actual"] = st.number_input(
                 f"Inventario Actual para {row['Nombre']}",
-                value=row["Inventario Actual"],
-                min_value=0.0,  # Evitar valores negativos
+                value=row["Inventario Actual"],  # Valor inicial sin restricciones
             )
             # Recalcular el pedido y total pedido
             ventas.at[idx, "Pedido"] = max(0, ventas_totales_rango - ventas.at[idx, "Inventario Actual"])
