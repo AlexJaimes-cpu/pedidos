@@ -1,90 +1,62 @@
 import pandas as pd
 import streamlit as st
+import os
 
-# Cargar los datos de ventas desde archivo_limpio.csv
-archivo_ventas = "archivo_limpio.csv"
-ventas = pd.read_csv(archivo_ventas)
+# Configuración del título de la aplicación
+st.title("Subir y Procesar Archivo de Ventas")
 
-# Convertir las columnas de inventario a números (eliminar el texto "inv")
-for columna in ["market samaria Inventario", "market playa dormida Inventario", "market two towers Inventario"]:
-    if columna in ventas.columns:
-        ventas[columna] = ventas[columna].str.replace(" inv", "").astype(float)
+# Cargar el archivo de ventas
+archivo_subido = st.file_uploader("Sube tu archivo de ventas en formato CSV:", type=["csv"])
 
-# Convertir columnas de ventas a números
-for columna in ["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"]:
-    if columna in ventas.columns:
-        ventas[columna] = ventas[columna].astype(float)
+if archivo_subido:
+    try:
+        # Leer el archivo subido
+        ventas = pd.read_csv(archivo_subido)
 
-# Configurar la aplicación Streamlit
-st.title("Formulario de Pedidos")
+        # Mostrar las primeras filas del archivo original
+        st.write("Vista previa del archivo subido:")
+        st.dataframe(ventas.head())
 
-# Seleccionar punto de venta
-punto_de_venta = st.selectbox("Selecciona el punto de venta:", ["Market Samaria", "Market Playa Dormida", "Market Two Towers"])
+        # Columnas para limpiar y convertir a números
+        columnas_a_limpiar = [
+            "Total en lista", "Descuentos", "Total Neto", 
+            "Devoluciones", "Total ajustado", "Costo", 
+            "Comision", "Ganancia"
+        ]
 
-# Mapeo entre puntos de venta y columnas correspondientes
-mapeo_punto_venta = {
-    "Market Samaria": ("market samaria Vendido", "market samaria Inventario"),
-    "Market Playa Dormida": ("market playa dormida Vendido", "market playa dormida Inventario"),
-    "Market Two Towers": ("market two towers Vendido", "market two towers Inventario"),
-}
+        # Limpiar las columnas económicas
+        for columna in columnas_a_limpiar:
+            if columna in ventas.columns:
+                ventas[columna] = pd.to_numeric(
+                    ventas[columna].str.replace(r"[^\d.-]", "", regex=True), errors="coerce"
+                )
 
-columna_venta, columna_inventario = mapeo_punto_venta[punto_de_venta]
+        # Convertir columnas de inventario eliminando texto no numérico
+        columnas_inventario = ["market samaria Inventario", "market playa dormida Inventario", "market two towers Inventario"]
+        for columna in columnas_inventario:
+            if columna in ventas.columns:
+                ventas[columna] = ventas[columna].str.replace(" inv", "").astype(float)
 
-# Seleccionar fechas
-fecha_pedido = st.date_input("Selecciona la fecha del pedido:")
-fecha_entrega = st.date_input("Selecciona la fecha de entrega (opcional):")
-fecha_inicio = st.date_input("Fecha de inicio:")
-fecha_fin = st.date_input("Fecha de fin:")
+        # Guardar el archivo limpio
+        nombre_archivo_limpio = "archivo_limpio.csv"
+        ventas.to_csv(nombre_archivo_limpio, index=False)
+        st.success(f"Archivo limpio generado como '{nombre_archivo_limpio}'")
 
-if fecha_inicio and fecha_fin:
-    rango_dias = (fecha_fin - fecha_inicio).days + 1
-    if rango_dias <= 0:
-        st.error("El rango de fechas no es válido. Por favor, selecciona fechas válidas.")
-    else:
-        # Calcular las ventas promedio diarias
-        ventas_promedio = ventas[columna_venta].sum() / 31  # Asumiendo ventas para todo diciembre
-        ventas_totales_rango = ventas_promedio * rango_dias
+        # Mostrar vista previa del archivo limpio
+        st.write("Vista previa del archivo limpio:")
+        st.dataframe(ventas.head())
 
-        # Calcular inventario actual y pedido
-        ventas["Inventario Actual"] = ventas[columna_inventario]
-        ventas["Pedido"] = ventas_totales_rango - ventas["Inventario Actual"]
-        ventas["Pedido"] = ventas["Pedido"].apply(lambda x: max(0, x))  # Evitar pedidos negativos
-        ventas["Total Unitario"] = ventas["Total en lista"].str.replace(r'[^\d.-]', '', regex=True).astype(float)
-        ventas["Total Pedido"] = ventas["Pedido"] * ventas["Total Unitario"]
+        # Botón para subir el archivo limpio al repositorio de GitHub
+        if st.button("Subir archivo limpio a GitHub"):
+            try:
+                os.system(f'git add {nombre_archivo_limpio}')
+                os.system('git commit -m "Actualizar archivo_limpio.csv"')
+                os.system('git push')
+                st.success("El archivo limpio ha sido subido a GitHub con éxito.")
+            except Exception as e:
+                st.error(f"Error subiendo a GitHub: {e}")
 
-        # Permitir al usuario editar el inventario actual manualmente
-        for idx, row in ventas.iterrows():
-            ventas.at[idx, "Inventario Actual"] = st.number_input(
-                f"Inventario Actual para {row['Nombre']}",
-                value=row["Inventario Actual"],  # Valor inicial sin restricciones
-            )
-            # Recalcular el pedido y total pedido
-            ventas.at[idx, "Pedido"] = max(0, ventas_totales_rango - ventas.at[idx, "Inventario Actual"])
-            ventas.at[idx, "Total Pedido"] = ventas.at[idx, "Pedido"] * ventas.at[idx, "Total Unitario"]
-
-        # Mostrar los resultados
-        st.write("Resumen de Inventario y Ventas")
-        resumen = ventas[["Nombre", columna_venta, "Inventario Actual", "Pedido", "Total Unitario", "Total Pedido"]]
-        resumen = resumen[resumen["Pedido"] > 0]  # Mostrar solo productos con pedido mayor a 0
-        st.dataframe(resumen)
-
-        # Calcular el total general del pedido
-        total_general = resumen["Total Pedido"].sum()
-        st.write(f"**Total del Pedido: ${total_general:,.2f}**")
-
-        # Botón para exportar el pedido a PDF
-        if st.button("Exportar Pedido a PDF"):
-            from fpdf import FPDF
-
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-
-            pdf.cell(200, 10, txt="Resumen de Pedido", ln=True, align="C")
-            pdf.ln(10)
-            for i, row in resumen.iterrows():
-                pdf.cell(0, 10, txt=f"{row['Nombre']}: {row['Pedido']} unidades - Total: ${row['Total Pedido']:,.2f}", ln=True)
-
-            pdf.cell(0, 10, txt=f"Total del Pedido: ${total_general:,.2f}", ln=True)
-            pdf.output("pedido.pdf")
-            st.success("El pedido ha sido exportado a pedido.pdf")
+    except Exception as e:
+        st.error(f"Error procesando el archivo: {e}")
+else:
+    st.info("Por favor, sube un archivo en formato CSV para procesarlo.")
