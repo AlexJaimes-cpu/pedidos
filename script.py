@@ -1,93 +1,79 @@
 import pandas as pd
-import os
 import streamlit as st
 
-# Archivos de entrada
-archivo_ventas = 'archivo_limpio.csv'
-archivo_compras = 'postobon_sas_limpio.csv'
+# Cargar los datos de ventas e inventarios desde archivo_limpio.csv
+archivo_ventas = "archivo_limpio.csv"
+ventas = pd.read_csv(archivo_ventas)
 
-# Verificar si los archivos existen
-if not os.path.exists(archivo_ventas):
-    st.error(f"El archivo '{archivo_ventas}' no fue encontrado. Verifica la ruta y el nombre.")
-    st.stop()
+# Convertir las columnas de inventario a números (eliminar el texto "inv")
+for columna in ["market samaria Inventario", "market playa dormida Inventario", "market two towers Inventario"]:
+    if columna in ventas.columns:
+        ventas[columna] = ventas[columna].str.replace(" inv", "").astype(float)
 
-if not os.path.exists(archivo_compras):
-    st.error(f"El archivo '{archivo_compras}' no fue encontrado. Verifica la ruta y el nombre.")
-    st.stop()
+# Convertir columnas de ventas a números
+for columna in ["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"]:
+    if columna in ventas.columns:
+        ventas[columna] = ventas[columna].astype(float)
 
-# Leer los archivos
-df_ventas = pd.read_csv(archivo_ventas)
-df_compras = pd.read_csv(archivo_compras)
-
-# Título de la aplicación
+# Configurar la aplicación Streamlit
 st.title("Formulario de Pedidos")
 
-# Selección del punto de venta
-punto_venta = st.selectbox("Selecciona el punto de venta", ["Market Samaria", "Market Playa Dormida", "Market Two Towers"])
+# Seleccionar punto de venta
+punto_de_venta = st.selectbox("Selecciona el punto de venta:", ["Market Samaria", "Market Playa Dormida", "Market Two Towers"])
 
-# Selección de la fecha del pedido
-fecha_pedido = st.date_input("Selecciona la fecha del pedido")
+# Mapeo entre puntos de venta y columnas correspondientes
+mapeo_punto_venta = {
+    "Market Samaria": ("market samaria Vendido", "market samaria Inventario"),
+    "Market Playa Dormida": ("market playa dormida Vendido", "market playa dormida Inventario"),
+    "Market Two Towers": ("market two towers Vendido", "market two towers Inventario"),
+}
 
-# Selección de la fecha de entrega (opcional)
-fecha_entrega = st.date_input("Selecciona la fecha de entrega (opcional)", value=None)
+columna_venta, columna_inventario = mapeo_punto_venta[punto_de_venta]
 
-# Selección del rango de fechas para las ventas
-st.write("Selecciona el rango de fechas para ver las ventas:")
-fecha_inicio = st.date_input("Fecha de inicio")
-fecha_fin = st.date_input("Fecha de fin")
+# Seleccionar fechas
+fecha_pedido = st.date_input("Selecciona la fecha del pedido:")
+fecha_entrega = st.date_input("Selecciona la fecha de entrega (opcional):")
+fecha_inicio = st.date_input("Fecha de inicio:", value=None)
+fecha_fin = st.date_input("Fecha de fin:", value=None)
 
-if fecha_inicio and fecha_fin and fecha_inicio > fecha_fin:
-    st.error("La fecha de inicio no puede ser posterior a la fecha de fin.")
-    st.stop()
+if fecha_inicio and fecha_fin:
+    rango_dias = (fecha_fin - fecha_inicio).days + 1
+    if rango_dias <= 0:
+        st.error("El rango de fechas no es válido. Por favor, selecciona fechas válidas.")
+    else:
+        # Calcular las ventas promedio diarias
+        ventas_promedio = ventas[columna_venta].sum() / 31  # Asumiendo ventas para todo diciembre
+        ventas_totales_rango = ventas_promedio * rango_dias
 
-# Filtrar ventas según el punto de venta y rango de fechas
-columna_ventas = f"{punto_venta.lower().replace(' ', '_')}_Vendido"
-columna_inventario = f"{punto_venta.lower().replace(' ', '_')}_Inventario"
+        # Calcular inventario actual y pedido
+        ventas["Inventario Actual"] = ventas[columna_inventario]
+        ventas["Pedido"] = ventas_totales_rango - ventas["Inventario Actual"]
+        ventas["Total Unitario"] = ventas["Total en lista"].str.replace(r'[^\d.-]', '', regex=True).astype(float)
+        ventas["Total Pedido"] = ventas["Pedido"] * ventas["Total Unitario"]
 
-if columna_ventas not in df_ventas.columns:
-    st.error(f"No se encontraron datos de ventas para el punto de venta seleccionado: {punto_venta}")
-    st.stop()
+        # Mostrar los resultados
+        st.write("Resumen de Inventario y Ventas")
+        resumen = ventas[["Nombre", columna_venta, "Inventario Actual", "Pedido", "Total Unitario", "Total Pedido"]]
+        resumen = resumen[resumen["Pedido"] > 0]  # Mostrar solo productos con pedido mayor a 0
+        st.dataframe(resumen)
 
-# Calcular promedio diario de ventas (asumiendo que el archivo tiene un rango mensual completo)
-promedio_ventas_diario = df_ventas[columna_ventas].sum() / 30  # Aproximación de 30 días
-dias_seleccionados = (fecha_fin - fecha_inicio).days + 1
-ventas_estimadas = promedio_ventas_diario * dias_seleccionados
+        # Calcular el total general del pedido
+        total_general = resumen["Total Pedido"].sum()
+        st.write(f"**Total del Pedido: ${total_general:,.2f}**")
 
-# Calcular inventario inicial
-inventario_inicial = df_ventas[columna_inventario].sum()
+        # Botón para exportar el pedido a PDF
+        if st.button("Exportar Pedido a PDF"):
+            from fpdf import FPDF
 
-# Calcular compras en el rango de fechas
-df_compras["Fecha"] = pd.to_datetime(df_compras["Fecha"], errors="coerce")
-compras_filtradas = df_compras[(df_compras["Fecha"] >= fecha_inicio) & (df_compras["Fecha"] <= fecha_fin)]
-compras_totales = compras_filtradas["Cantidad"].sum()
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
 
-# Calcular inventario final
-inventario_final = inventario_inicial + compras_totales - ventas_estimadas
+            pdf.cell(200, 10, txt="Resumen de Pedido", ln=True, align="C")
+            pdf.ln(10)
+            for i, row in resumen.iterrows():
+                pdf.cell(0, 10, txt=f"{row['Nombre']}: {row['Pedido']} unidades - Total: ${row['Total Pedido']:,.2f}", ln=True)
 
-# Mostrar resumen de inventario y ventas
-st.subheader("Resumen de Inventario y Ventas")
-st.write(f"Inventario inicial: {inventario_inicial}")
-st.write(f"Compras en el rango de fechas: {compras_totales}")
-st.write(f"Ventas estimadas: {ventas_estimadas}")
-st.write(f"Inventario final: {inventario_final}")
-
-# Calcular pedido sugerido
-pedido_sugerido = max(0, ventas_estimadas - inventario_final)
-
-# Entrada para modificar el inventario final manualmente
-inventario_final_manual = st.number_input("Modificar inventario final (opcional)", value=inventario_final)
-
-# Recalcular el pedido si se modifica el inventario
-pedido_calculado = max(0, ventas_estimadas - inventario_final_manual)
-st.write(f"Pedido sugerido: {pedido_calculado}")
-
-# Calcular el total del pedido
-precio_unitario = df_compras["Total Unitario"].iloc[-1] if not df_compras.empty else 0
-total_pedido = pedido_calculado * precio_unitario
-st.write(f"Precio unitario: {precio_unitario}")
-st.write(f"Total del pedido: {total_pedido}")
-
-# Botón para exportar a PDF
-if st.button("Exportar a PDF"):
-    # Código para generar PDF
-    st.write("Función de exportación a PDF aún no implementada.")
+            pdf.cell(0, 10, txt=f"Total del Pedido: ${total_general:,.2f}", ln=True)
+            pdf.output("pedido.pdf")
+            st.success("El pedido ha sido exportado a pedido.pdf")
