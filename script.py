@@ -2,68 +2,80 @@ import pandas as pd
 import streamlit as st
 
 # Configuración de la aplicación
-st.title("Formulario de Pedido")
+st.title("Procesar y Formatear Archivo de Ventas")
 
-# Cargar archivos
-archivo_ventas = "archivo_limpio.csv"
-archivo_compras = "postobon_sas_limpio.csv"
+# Subir el archivo inicial de reporte de ventas
+archivo_inicial = st.file_uploader("Sube el archivo de ventas inicial (Reporte de Ventas):", type=["csv"])
 
-ventas = pd.read_csv(archivo_ventas)
-compras = pd.read_csv(archivo_compras)
+if archivo_inicial:
+    try:
+        # Leer el archivo inicial
+        ventas_inicial = pd.read_csv(archivo_inicial)
 
-# Limpieza y preprocesamiento de los datos
-ventas["Nombre"] = ventas["Nombre"].str.strip()
-compras["Producto"] = compras["Producto"].str.strip()
+        # Mostrar vista previa del archivo original
+        st.write("Vista previa del archivo subido:")
+        st.dataframe(ventas_inicial.head())
 
-# Filtrar productos comunes entre ventas y compras
-productos_comunes = ventas.merge(
-    compras, left_on="Nombre", right_on="Producto", how="inner"
-)
+        # Renombrar columnas para que coincidan con archivo_limpio
+        columnas_renombradas = {
+            "Codigo": "Codigo",
+            "Nombre": "Nombre",
+            "market samaria vendido": "market samaria Vendido",
+            "market playa dormida vendido": "market playa dormida Vendido",
+            "market two towers vendido": "market two towers Vendido",
+            "principal vendido": "principal Vendido",
+            "donaciones vendido": "donaciones Vendido",
+            "market samaria inventario": "market samaria Inventario",
+            "market playa dormida inventario": "market playa dormida Inventario",
+            "market two towers inventario": "market two towers Inventario",
+            "principal inventario": "principal Inventario",
+            "donaciones inventario": "donaciones Inventario",
+            "total vendido": "Total vendido",
+            "total inventario": "Total inventario",
+            "total en lista": "Total en lista",
+            "descuentos": "Descuentos",
+            "total neto": "Total Neto",
+            "devoluciones": "Devoluciones",
+            "total ajustado": "Total ajustado",
+            "costo": "Costo",
+            "comision": "Comision",
+            "ganancia": "Ganancia",
+            "%": "%",
+            "categoria": "Categoria",
+            "subcategoria": "SubCategoria",
+            "marca": "Marca",
+        }
+        ventas_inicial.rename(columns=columnas_renombradas, inplace=True)
 
-# Procesar Total Unitario
-productos_comunes["Precio Compra"] = compras.groupby("Producto")["Total Unitario"].transform("last")
-productos_comunes["Precio Compra"] = productos_comunes["Precio Compra"].fillna(0)
+        # Limpiar y convertir columnas relevantes a formato numérico
+        columnas_a_limpiar = [
+            "Total en lista", "Descuentos", "Total Neto", "Devoluciones",
+            "Total ajustado", "Costo", "Comision", "Ganancia"
+        ]
+        for columna in columnas_a_limpiar:
+            if columna in ventas_inicial.columns:
+                ventas_inicial[columna] = pd.to_numeric(
+                    ventas_inicial[columna].str.replace(r"[^\d.-]", "", regex=True),
+                    errors="coerce"
+                )
 
-# Selección del rango de fechas
-fecha_inicio = st.date_input("Fecha de inicio:")
-fecha_fin = st.date_input("Fecha de fin:")
-if fecha_inicio and fecha_fin:
-    rango_dias = (fecha_fin - fecha_inicio).days + 1
-    if rango_dias > 0:
-        st.write(f"El rango de días seleccionado es: **{rango_dias} días**")
-        # Calcular ventas promedio diarias
-        productos_comunes["Ventas Diarias"] = productos_comunes["market samaria Vendido"] / 30
-        productos_comunes["Ventas en Rango"] = productos_comunes["Ventas Diarias"] * rango_dias
-    else:
-        st.error("El rango de fechas no es válido.")
+        # Limpiar las columnas de inventario
+        columnas_inventario = [
+            "market samaria Inventario", "market playa dormida Inventario",
+            "market two towers Inventario", "principal Inventario", "donaciones Inventario"
+        ]
+        for columna in columnas_inventario:
+            if columna in ventas_inicial.columns:
+                ventas_inicial[columna] = ventas_inicial[columna].str.replace(" inv", "").astype(float)
 
-# Calcular inventario y pedido
-productos_comunes["Inventario Calculado"] = productos_comunes["market samaria Inventario"] - productos_comunes["Ventas en Rango"]
-productos_comunes["Inventario Calculado"] = productos_comunes["Inventario Calculado"].clip(lower=0)
+        # Guardar el archivo limpio
+        nombre_archivo_limpio = "archivo_limpio.csv"
+        ventas_inicial.to_csv(nombre_archivo_limpio, index=False)
 
-# Interacción con el usuario: Editar inventario y pedido
-productos_comunes["Inventario Actual"] = 0
-productos_comunes["Pedido"] = 0
+        # Confirmación de éxito
+        st.success(f"Archivo procesado y guardado como '{nombre_archivo_limpio}'")
+        st.write("Vista previa del archivo limpio:")
+        st.dataframe(ventas_inicial.head())
 
-for idx, row in productos_comunes.iterrows():
-    productos_comunes.at[idx, "Inventario Actual"] = st.number_input(
-        f"Inventario para {row['Nombre']}:",
-        min_value=0, value=int(row["Inventario Calculado"]),
-        key=f"inv_{idx}"
-    )
-    productos_comunes.at[idx, "Pedido"] = st.number_input(
-        f"Pedido para {row['Nombre']}:",
-        min_value=0, value=int(row["Ventas en Rango"] - row["Inventario Calculado"]),
-        key=f"pedido_{idx}"
-    )
-
-# Calcular total del pedido
-productos_comunes["Total Pedido"] = productos_comunes["Pedido"] * productos_comunes["Precio Compra"]
-
-# Mostrar resultados en una tabla
-st.write("Resumen del Pedido:")
-st.dataframe(productos_comunes[["Nombre", "Inventario Actual", "Pedido", "Precio Compra", "Total Pedido"]])
-
-# Mostrar total general del pedido
-total_general = productos_comunes["Total Pedido"].sum()
-st.write(f"**Total General del Pedido: ${total_general:,.2f}**")
+    except Exception as e:
+        st.error(f"Error procesando el archivo: {e}")
