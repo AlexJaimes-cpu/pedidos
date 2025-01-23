@@ -67,12 +67,13 @@ if archivo_ventas and archivo_compras:
     try:
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
-        st.success("Archivos cargados y limpiados correctamente.")
+        st.success("Archivos cargados correctamente.")
+        st.write("")  # Oculta mensajes al avanzar
     except Exception as e:
         st.error(f"Error al limpiar los archivos: {e}")
         st.stop()
     
-    # Configuración de campos obligatorios
+    # Configuración del formulario
     punto_venta = st.selectbox(
         "Punto de Venta", 
         options=["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"], 
@@ -86,10 +87,9 @@ if archivo_ventas and archivo_compras:
     rango_fechas = st.date_input("Selecciona el rango de fechas:", value=(date.today(), date.today()))
 
     if len(rango_fechas) == 2:
-        # Convertir valores del rango de fechas a datetime
+        # Convertir rango de fechas a datetime
         fecha_inicio = datetime.combine(rango_fechas[0], datetime.min.time())
         fecha_fin = datetime.combine(rango_fechas[1], datetime.min.time())
-
         dias_rango = (fecha_fin - fecha_inicio).days + 1
         st.write(f"Número de días en el rango seleccionado: {dias_rango} días")
 
