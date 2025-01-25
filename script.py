@@ -1,6 +1,5 @@
 import pandas as pd
 import streamlit as st
-from fpdf import FPDF
 from datetime import date, datetime
 
 # Función para limpiar y normalizar el archivo de ventas
@@ -25,38 +24,6 @@ def limpiar_compras(archivo):
     df = df.dropna(subset=["producto", "fecha"])  # Eliminar filas sin Producto o Fecha
     return df
 
-# Función para exportar a PDF
-def exportar_a_pdf(dataframe, punto_venta, fecha_pedido, fecha_entrega, total_general):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt="Formato de Pedidos Estevez Uribe", ln=True, align="C")
-    pdf.ln(10)
-
-    # Información del pedido
-    pdf.cell(200, 10, txt=f"Punto de venta: {punto_venta}", ln=True)
-    pdf.cell(200, 10, txt=f"Fecha del pedido: {fecha_pedido}", ln=True)
-    pdf.cell(200, 10, txt=f"Fecha de entrega: {fecha_entrega}", ln=True)
-    pdf.ln(10)
-
-    # Encabezados de la tabla
-    pdf.set_font("Arial", size=10)
-    pdf.cell(60, 10, "Producto", 1, 0, "C")
-    pdf.cell(30, 10, "Unidades", 1, 0, "C")
-    pdf.cell(30, 10, "Precio Compra", 1, 0, "C")
-    pdf.cell(40, 10, "Total x Ref", 1, 1, "C")
-
-    # Datos del pedido
-    for _, row in dataframe.iterrows():
-        pdf.cell(60, 10, row["producto"], 1, 0, "L")
-        pdf.cell(30, 10, str(row["unidades"]), 1, 0, "R")
-        pdf.cell(30, 10, f"${row['total unitario']:.2f}", 1, 0, "R")
-        pdf.cell(40, 10, f"${row['total x ref']:.2f}", 1, 1, "R")
-
-    pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Total del Pedido: ${total_general:.2f}", ln=True, align="R")
-    pdf.output("/tmp/pedido_estevez_uribe.pdf")
-
 # Interfaz Streamlit
 st.title("Formato de Pedidos Estevez Uribe")
 
@@ -65,72 +32,69 @@ archivo_ventas = st.file_uploader("Sube el archivo de ventas (CSV):", type=["csv
 archivo_compras = st.file_uploader("Sube el archivo de compras (CSV):", type=["csv"])
 
 if archivo_ventas and archivo_compras:
-    # Limpieza de archivos
     try:
+        # Cargar y limpiar los archivos
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
         st.success("Archivos cargados correctamente.")
     except Exception as e:
         st.error(f"Error al limpiar los archivos: {e}")
         st.stop()
-    
+
     # Configuración del formulario
     punto_venta = st.selectbox(
-        "Punto de Venta", 
-        options=["market samaria vendido", "market playa dormida vendido", "market two towers vendido"], 
+        "Punto de Venta",
+        options=["market samaria vendido", "market playa dormida vendido", "market two towers vendido"],
         help="Selecciona el punto de venta."
     )
-    
     fecha_pedido = st.date_input("Fecha de pedido:", value=date.today())
     fecha_entrega = st.date_input("Fecha de entrega:", value=date.today())
-    
     st.subheader("Rango de Fechas")
     rango_fechas = st.date_input("Selecciona el rango de fechas:", value=(date.today(), date.today()))
 
     if len(rango_fechas) == 2:
-        # Convertir rango de fechas a datetime
+        # Calcular días en el rango
         fecha_inicio = datetime.combine(rango_fechas[0], datetime.min.time())
         fecha_fin = datetime.combine(rango_fechas[1], datetime.min.time())
         dias_rango = (fecha_fin - fecha_inicio).days + 1
         st.write(f"Número de días en el rango seleccionado: {dias_rango} días")
 
-        # Calcular ventas en el rango
-        ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta] / 30) * dias_rango
-
         # Filtrar compras por rango de fechas
         compras_filtradas = compras_limpias[
-            (compras_limpias["fecha"] >= fecha_inicio) & 
+            (compras_limpias["fecha"] >= fecha_inicio) &
             (compras_limpias["fecha"] <= fecha_fin)
         ]
 
-        # Cruzar productos normalizados
-        productos_comunes = compras_filtradas.merge(
-            ventas_limpias, left_on="producto", right_on="nombre", how="inner"
-        )
-        productos_comunes["inventario"] = productos_comunes["cantidad"] - productos_comunes["ventas en rango"]
-        productos_comunes["inventario"] = productos_comunes["inventario"].apply(lambda x: max(x, 0))
-        productos_comunes["unidades"] = productos_comunes["ventas en rango"] - productos_comunes["inventario"]
-        productos_comunes["total x ref"] = productos_comunes["unidades"] * productos_comunes["total unitario"]
+        # Crear base de productos con información de compras
+        productos_base = compras_filtradas[["producto", "total unitario", "cantidad"]].copy()
 
-        # Mostrar tabla si hay datos
-        if not productos_comunes.empty:
-            st.dataframe(productos_comunes[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
-        else:
-            st.warning("No se encontraron productos en común entre las ventas y las compras.")
+        # Agregar información de ventas (ventas en rango)
+        ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta] / 30) * dias_rango
+        productos_base = productos_base.merge(
+            ventas_limpias[["nombre", "ventas en rango"]],
+            left_on="producto",
+            right_on="nombre",
+            how="left"
+        )
+
+        # Reemplazar NaN en Ventas en Rango con 0
+        productos_base["ventas en rango"] = productos_base["ventas en rango"].fillna(0)
+
+        # Calcular inventario, unidades y total por referencia
+        productos_base["inventario"] = productos_base["cantidad"] - productos_base["ventas en rango"]
+        productos_base["inventario"] = productos_base["inventario"].apply(lambda x: max(x, 0))  # Ajustar inventario a 0 mínimo
+        productos_base["unidades"] = productos_base["ventas en rango"] - productos_base["inventario"]
+        productos_base["total x ref"] = productos_base["unidades"] * productos_base["total unitario"]
+
+        # Mostrar la tabla final
+        st.dataframe(productos_base[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
 
         # Resumen
-        total_general = productos_comunes["total x ref"].sum()
+        total_general = productos_base["total x ref"].sum()
         st.subheader("Resumen del Pedido")
         st.write(f"Punto de Venta: {punto_venta}")
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
-        # Botón de exportar a PDF
+        # Botón para exportar el pedido
         if st.button("Exportar Pedido a PDF"):
-            exportar_a_pdf(
-                productos_comunes[["producto", "unidades", "total unitario", "total x ref"]],
-                punto_venta,
-                fecha_pedido,
-                fecha_entrega,
-                total_general
-            )
-            st.success("Pedido exportado como 'pedido_estevez_uribe.pdf'")
+            st.success("Función de exportación lista para implementar.")
