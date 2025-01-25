@@ -12,6 +12,8 @@ def limpiar_compras(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["producto"] = df["producto"].str.strip().str.lower()  # Normalizar nombres de productos
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")  # Convertir columna "fecha" a datetime
+    df = df.dropna(subset=["fecha"])  # Eliminar filas con fechas inválidas
     return df
 
 # Interfaz Streamlit
@@ -37,6 +39,8 @@ if archivo_ventas and archivo_compras:
         # Mostrar productos únicos en común
         st.write("### Productos Únicos en Común:")
         st.dataframe(productos_unicos)
+        
+        # Importar módulos necesarios
         from datetime import date, datetime
 
         # Celdas para Fecha de Orden y Fecha de Entrega
