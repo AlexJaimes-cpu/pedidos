@@ -41,13 +41,6 @@ if archivo_ventas and archivo_compras:
         st.error(f"Error al limpiar los archivos: {e}")
         st.stop()
 
-    # Mostrar productos para depuración
-    st.write("### Productos en Ventas:")
-    st.write(ventas_limpias["nombre"].unique())
-
-    st.write("### Productos en Compras:")
-    st.write(compras_limpias["producto"].unique())
-
     # Configuración del formulario
     punto_venta = st.selectbox(
         "Punto de Venta",
@@ -75,6 +68,10 @@ if archivo_ventas and archivo_compras:
         # Crear base de productos con información de compras
         productos_base = compras_filtradas[["producto", "total unitario", "cantidad"]].copy()
 
+        # Asegurarse de que las columnas críticas tengan valores predeterminados
+        productos_base["total unitario"] = productos_base["total unitario"].fillna(0)
+        productos_base["cantidad"] = productos_base["cantidad"].fillna(0)
+
         # Agregar información de ventas (ventas en rango)
         ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta] / 30) * dias_rango
         productos_base = productos_base.merge(
@@ -91,6 +88,7 @@ if archivo_ventas and archivo_compras:
         productos_base["inventario"] = productos_base["cantidad"] - productos_base["ventas en rango"]
         productos_base["inventario"] = productos_base["inventario"].apply(lambda x: max(x, 0))  # Ajustar inventario a 0 mínimo
         productos_base["unidades"] = productos_base["ventas en rango"] - productos_base["inventario"]
+        productos_base["unidades"] = productos_base["unidades"].apply(lambda x: max(x, 0))  # Ajustar unidades a 0 mínimo
         productos_base["total x ref"] = productos_base["unidades"] * productos_base["total unitario"]
 
         # Mostrar la tabla final
