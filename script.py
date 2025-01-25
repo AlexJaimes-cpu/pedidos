@@ -6,6 +6,10 @@ def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["nombre"] = df["nombre"].str.strip().str.lower()  # Normalizar nombres de productos
+    # Asegurarse de que las columnas de ventas sean numéricas
+    for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     return df
 
 def limpiar_compras(archivo):
@@ -13,6 +17,8 @@ def limpiar_compras(archivo):
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["producto"] = df["producto"].str.strip().str.lower()  # Normalizar nombres de productos
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")  # Convertir columna "fecha" a datetime
+    df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)  # Convertir Total Unitario a float
+    df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)  # Convertir Cantidad a float
     df = df.dropna(subset=["fecha"])  # Eliminar filas con fechas inválidas
     return df
 
