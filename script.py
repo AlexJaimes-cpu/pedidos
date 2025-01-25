@@ -41,6 +41,13 @@ if archivo_ventas and archivo_compras:
         st.error(f"Error al limpiar los archivos: {e}")
         st.stop()
 
+    # Mostrar productos para depuración
+    st.write("### Productos en Ventas:")
+    st.write(ventas_limpias["nombre"].unique())
+
+    st.write("### Productos en Compras:")
+    st.write(compras_limpias["producto"].unique())
+
     # Configuración del formulario
     punto_venta = st.selectbox(
         "Punto de Venta",
@@ -87,14 +94,13 @@ if archivo_ventas and archivo_compras:
         productos_base["total x ref"] = productos_base["unidades"] * productos_base["total unitario"]
 
         # Mostrar la tabla final
-        st.dataframe(productos_base[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+        if not productos_base.empty:
+            st.dataframe(productos_base[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+        else:
+            st.warning("No se encontraron productos para mostrar. Verifique los archivos cargados.")
 
         # Resumen
         total_general = productos_base["total x ref"].sum()
         st.subheader("Resumen del Pedido")
         st.write(f"Punto de Venta: {punto_venta}")
         st.write(f"Total del Pedido: ${total_general:.2f}")
-
-        # Botón para exportar el pedido
-        if st.button("Exportar Pedido a PDF"):
-            st.success("Función de exportación lista para implementar.")
