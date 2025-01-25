@@ -6,8 +6,8 @@ from datetime import date, datetime
 # Función para limpiar y procesar el archivo de ventas
 def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
-    df.columns = df.columns.str.strip()  # Eliminar espacios en los nombres de las columnas
-    for col in ["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"]:
+    df.columns = df.columns.str.strip().str.lower()  # Eliminar espacios y convertir nombres de columnas a minúsculas
+    for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
         else:
@@ -17,10 +17,10 @@ def limpiar_ventas(archivo):
 # Función para limpiar y procesar el archivo de compras
 def limpiar_compras(archivo):
     df = pd.read_csv(archivo)
-    df.columns = df.columns.str.strip()  # Eliminar espacios en los nombres de las columnas
-    df["Fecha"] = pd.to_datetime(df["Fecha"], errors="coerce")  # Convertir Fecha a datetime
-    df["Total Unitario"] = pd.to_numeric(df["Total Unitario"], errors="coerce").fillna(0)  # Convertir Total Unitario a numérico
-    df = df.dropna(subset=["Producto", "Fecha"])  # Eliminar filas sin Producto o Fecha
+    df.columns = df.columns.str.strip().str.lower()  # Eliminar espacios y convertir nombres de columnas a minúsculas
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")  # Convertir Fecha a datetime
+    df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)  # Convertir Total Unitario a numérico
+    df = df.dropna(subset=["producto", "fecha"])  # Eliminar filas sin Producto o Fecha
     return df
 
 # Función para exportar a PDF
@@ -46,10 +46,10 @@ def exportar_a_pdf(dataframe, punto_venta, fecha_pedido, fecha_entrega, total_ge
 
     # Datos del pedido
     for _, row in dataframe.iterrows():
-        pdf.cell(60, 10, row["Producto"], 1, 0, "L")
-        pdf.cell(30, 10, str(row["Unidades"]), 1, 0, "R")
-        pdf.cell(30, 10, f"${row['Total Unitario']:.2f}", 1, 0, "R")
-        pdf.cell(40, 10, f"${row['Total x Ref']:.2f}", 1, 1, "R")
+        pdf.cell(60, 10, row["producto"], 1, 0, "L")
+        pdf.cell(30, 10, str(row["unidades"]), 1, 0, "R")
+        pdf.cell(30, 10, f"${row['total unitario']:.2f}", 1, 0, "R")
+        pdf.cell(40, 10, f"${row['total x ref']:.2f}", 1, 1, "R")
 
     pdf.ln(10)
     pdf.cell(200, 10, txt=f"Total del Pedido: ${total_general:.2f}", ln=True, align="R")
@@ -75,7 +75,7 @@ if archivo_ventas and archivo_compras:
     # Configuración del formulario
     punto_venta = st.selectbox(
         "Punto de Venta", 
-        options=["market samaria Vendido", "market playa dormida Vendido", "market two towers Vendido"], 
+        options=["market samaria vendido", "market playa dormida vendido", "market two towers vendido"], 
         help="Selecciona el punto de venta."
     )
     
@@ -93,40 +93,43 @@ if archivo_ventas and archivo_compras:
         st.write(f"Número de días en el rango seleccionado: {dias_rango} días")
 
         # Calcular ventas en el rango
-        ventas_limpias["Ventas en Rango"] = (ventas_limpias[punto_venta] / 30) * dias_rango
+        ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta] / 30) * dias_rango
 
         # Filtrar compras por rango de fechas
         compras_filtradas = compras_limpias[
-            (compras_limpias["Fecha"] >= fecha_inicio) & 
-            (compras_limpias["Fecha"] <= fecha_fin)
+            (compras_limpias["fecha"] >= fecha_inicio) & 
+            (compras_limpias["fecha"] <= fecha_fin)
         ]
 
+        # Verificar claves de cruce
+        st.write("Productos en ventas:", ventas_limpias["nombre"].unique())
+        st.write("Productos en compras:", compras_filtradas["producto"].unique())
+
         # Calcular inventario y unidades
-        productos_comunes = compras_filtradas.merge(ventas_limpias, left_on="Producto", right_on="Nombre", how="inner")
-        productos_comunes["Inventario"] = productos_comunes["Cantidad"] - productos_comunes["Ventas en Rango"]
-        productos_comunes["Inventario"] = productos_comunes["Inventario"].apply(lambda x: max(x, 0))
-        productos_comunes["Unidades"] = productos_comunes["Ventas en Rango"] - productos_comunes["Inventario"]
-        productos_comunes["Total x Ref"] = productos_comunes["Unidades"] * productos_comunes["Total Unitario"]
+        productos_comunes = compras_filtradas.merge(
+            ventas_limpias, left_on="producto", right_on="nombre", how="inner"
+        )
+        productos_comunes["inventario"] = productos_comunes["cantidad"] - productos_comunes["ventas en rango"]
+        productos_comunes["inventario"] = productos_comunes["inventario"].apply(lambda x: max(x, 0))
+        productos_comunes["unidades"] = productos_comunes["ventas en rango"] - productos_comunes["inventario"]
+        productos_comunes["total x ref"] = productos_comunes["unidades"] * productos_comunes["total unitario"]
 
-        # Ajustar visualización de inventarios bajos
-        def resaltar_inventario(val):
-            return "background-color: red;" if val < 30 else ""
-
-        # Mostrar tabla editable
-        styled_table = productos_comunes[["Producto", "Ventas en Rango", "Inventario", "Unidades", "Total Unitario", "Total x Ref"]] \
-            .style.applymap(resaltar_inventario, subset=["Inventario"])
-        st.write(styled_table)
+        # Mostrar tabla si hay datos
+        if not productos_comunes.empty:
+            st.dataframe(productos_comunes[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+        else:
+            st.warning("No se encontraron productos en común entre las ventas y las compras.")
 
         # Resumen
+        total_general = productos_comunes["total x ref"].sum()
         st.subheader("Resumen del Pedido")
-        total_general = productos_comunes["Total x Ref"].sum()
         st.write(f"Punto de Venta: {punto_venta}")
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
         # Botón de exportar a PDF
         if st.button("Exportar Pedido a PDF"):
             exportar_a_pdf(
-                productos_comunes[["Producto", "Unidades", "Total Unitario", "Total x Ref"]],
+                productos_comunes[["producto", "unidades", "total unitario", "total x ref"]],
                 punto_venta,
                 fecha_pedido,
                 fecha_entrega,
