@@ -39,9 +39,9 @@ if archivo_ventas and archivo_compras:
 
         # Filtro de Punto de Venta
         punto_venta_opciones = {
-            "ventas market samaria vendido": "Samaria",
-            "ventas market playa dormida vendido": "Playa Dormida",
-            "ventas market two towers vendido": "Two Towers",
+            "market samaria vendido": "Samaria",
+            "market playa dormida vendido": "Playa Dormida",
+            "market two towers vendido": "Two Towers",
         }
         punto_venta_columna = st.selectbox(
             "Seleccione el Punto de Venta:",
