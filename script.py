@@ -3,23 +3,25 @@ import streamlit as st
 from fpdf import FPDF
 from datetime import date, datetime
 
-# Función para limpiar y procesar el archivo de ventas
+# Función para limpiar y normalizar el archivo de ventas
 def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
-    df.columns = df.columns.str.strip().str.lower()  # Eliminar espacios y convertir nombres de columnas a minúsculas
+    df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
         else:
             raise KeyError(f"Columna '{col}' no encontrada en el archivo de ventas.")
+    df["nombre"] = df["nombre"].str.strip().str.lower()  # Normalizar los nombres de productos
     return df
 
-# Función para limpiar y procesar el archivo de compras
+# Función para limpiar y normalizar el archivo de compras
 def limpiar_compras(archivo):
     df = pd.read_csv(archivo)
-    df.columns = df.columns.str.strip().str.lower()  # Eliminar espacios y convertir nombres de columnas a minúsculas
+    df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")  # Convertir Fecha a datetime
     df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)  # Convertir Total Unitario a numérico
+    df["producto"] = df["producto"].str.strip().str.lower()  # Normalizar los nombres de productos
     df = df.dropna(subset=["producto", "fecha"])  # Eliminar filas sin Producto o Fecha
     return df
 
@@ -101,11 +103,7 @@ if archivo_ventas and archivo_compras:
             (compras_limpias["fecha"] <= fecha_fin)
         ]
 
-        # Verificar claves de cruce
-        st.write("Productos en ventas:", ventas_limpias["nombre"].unique())
-        st.write("Productos en compras:", compras_filtradas["producto"].unique())
-
-        # Calcular inventario y unidades
+        # Cruzar productos normalizados
         productos_comunes = compras_filtradas.merge(
             ventas_limpias, left_on="producto", right_on="nombre", how="inner"
         )
