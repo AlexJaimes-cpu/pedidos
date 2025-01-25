@@ -78,19 +78,27 @@ if archivo_ventas and archivo_compras:
                 compras_filtradas, ventas_limpias,
                 left_on="producto", right_on="nombre", how="inner"
             )
-            productos_filtrados["ventas en rango"] = productos_filtrados["ventas en rango"].fillna(0)
-            productos_filtrados["inventario"] = productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]
-            productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
-            productos_filtrados["unidades"] = productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]
-            productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
-            productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
+
+            # Sumar las ventas y compras por producto
+            productos_agrupados = productos_filtrados.groupby("producto").agg({
+                "ventas en rango": "sum",
+                "cantidad": "sum",
+                "total unitario": "mean"
+            }).reset_index()
+
+            # Calcular inventario, unidades y total por referencia
+            productos_agrupados["inventario"] = productos_agrupados["cantidad"] - productos_agrupados["ventas en rango"]
+            productos_agrupados["inventario"] = productos_agrupados["inventario"].apply(lambda x: max(x, 0))
+            productos_agrupados["unidades"] = productos_agrupados["ventas en rango"] - productos_agrupados["inventario"]
+            productos_agrupados["unidades"] = productos_agrupados["unidades"].apply(lambda x: max(x, 0))
+            productos_agrupados["total x ref"] = productos_agrupados["unidades"] * productos_agrupados["total unitario"]
 
             # Mostrar la tabla final
             st.write("### Pedido")
-            st.dataframe(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+            st.dataframe(productos_agrupados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
 
             # Resumen del Pedido
-            total_general = productos_filtrados["total x ref"].sum()
+            total_general = productos_agrupados["total x ref"].sum()
             st.write(f"Total del Pedido: ${total_general:.2f}")
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
