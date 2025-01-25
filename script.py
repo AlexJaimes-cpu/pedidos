@@ -15,7 +15,7 @@ def limpiar_compras(archivo):
     return df
 
 # Interfaz Streamlit
-st.title("Verificar Productos en Común")
+st.title("Verificar Productos Únicos en Común")
 
 # Carga de archivos
 archivo_ventas = st.file_uploader("Sube el archivo de ventas (CSV):", type=["csv"])
@@ -27,15 +27,16 @@ if archivo_ventas and archivo_compras:
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
         
-        # Encontrar productos en común
+        # Encontrar productos en común y eliminar duplicados
         productos_comunes = pd.merge(
             compras_limpias, ventas_limpias,
             left_on="producto", right_on="nombre", how="inner"
         )
-        
-        # Mostrar productos en común
-        st.write("### Productos en Común:")
-        st.dataframe(productos_comunes[["producto", "nombre"]])
+        productos_unicos = productos_comunes[["producto"]].drop_duplicates()
+
+        # Mostrar productos únicos en común
+        st.write("### Productos Únicos en Común:")
+        st.dataframe(productos_unicos)
         
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
