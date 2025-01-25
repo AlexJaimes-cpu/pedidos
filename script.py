@@ -17,7 +17,7 @@ def limpiar_compras(archivo):
     return df
 
 # Interfaz Streamlit
-st.title("Verificar Productos Únicos en Común")
+st.title("Formato de Pedido")
 
 # Carga de archivos
 archivo_ventas = st.file_uploader("Sube el archivo de ventas (CSV):", type=["csv"])
@@ -28,27 +28,28 @@ if archivo_ventas and archivo_compras:
         # Limpiar y normalizar los datos
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
-        
-        # Encontrar productos en común y eliminar duplicados
-        productos_comunes = pd.merge(
-            compras_limpias, ventas_limpias,
-            left_on="producto", right_on="nombre", how="inner"
-        )
-        productos_unicos = productos_comunes[["producto"]].drop_duplicates()
 
-        # Mostrar productos únicos en común
-        st.write("### Productos Únicos en Común:")
-        st.dataframe(productos_unicos)
-        
         # Importar módulos necesarios
         from datetime import date, datetime
 
-        # Celdas para Fecha de Orden y Fecha de Entrega
+        # Parámetros del pedido
         st.subheader("Parámetros del Pedido")
         fecha_orden = st.date_input("Fecha de Orden", value=date.today())
         fecha_entrega = st.date_input("Fecha de Entrega", value=date.today())
 
-        # Rango de fechas para filtrar el archivo de compras
+        # Filtro de Punto de Venta
+        punto_venta_opciones = {
+            "ventas market samaria vendido": "Samaria",
+            "ventas market playa dormida vendido": "Playa Dormida",
+            "ventas market two towers vendido": "Two Towers",
+        }
+        punto_venta_columna = st.selectbox(
+            "Seleccione el Punto de Venta:",
+            options=list(punto_venta_opciones.keys()),
+            format_func=lambda x: punto_venta_opciones[x]
+        )
+
+        # Filtro de Rango de Fechas
         st.subheader("Filtro de Rango de Fechas")
         rango_fechas = st.date_input(
             "Selecciona el rango de fechas para las compras:",
@@ -65,15 +66,26 @@ if archivo_ventas and archivo_compras:
                 (compras_limpias["fecha"] <= fecha_fin)
             ]
 
-            # Actualizar la tabla para mostrar los productos filtrados
-            productos_comunes_filtrados = pd.merge(
+            # Filtrar productos por punto de venta y rango de fechas
+            ventas_limpias["ventas en rango"] = ventas_limpias[punto_venta_columna] / 30
+            productos_filtrados = pd.merge(
                 compras_filtradas, ventas_limpias,
                 left_on="producto", right_on="nombre", how="inner"
             )
-            productos_unicos_filtrados = productos_comunes_filtrados[["producto"]].drop_duplicates()
+            productos_filtrados["ventas en rango"] = productos_filtrados["ventas en rango"].fillna(0)
+            productos_filtrados["inventario"] = productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]
+            productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
+            productos_filtrados["unidades"] = productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]
+            productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
+            productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
 
-            st.write("### Productos Únicos Filtrados por Rango de Fechas:")
-            st.dataframe(productos_unicos_filtrados)
+            # Mostrar la tabla final
+            st.write("### Pedido")
+            st.dataframe(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+
+            # Resumen del Pedido
+            total_general = productos_filtrados["total x ref"].sum()
+            st.write(f"Total del Pedido: ${total_general:.2f}")
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
 
