@@ -88,32 +88,38 @@ if archivo_ventas and archivo_compras:
                 left_on="producto", right_on="nombre", how="inner"
             )
 
-            # Sumar las ventas y compras por producto
-            productos_agrupados = productos_filtrados.groupby("producto").agg({
-                "ventas": "sum",
-                "cantidad": "sum",
-                "total unitario": "mean"
-            }).reset_index()
+            # Obtener "VR UND COMPRA" (Total Unitario) con la fecha más reciente
+            productos_filtrados["vr und compra"] = productos_filtrados.groupby("producto")["total unitario"].transform("last")
 
             # Calcular inventario y unidades
-            productos_agrupados["inventario"] = (productos_agrupados["cantidad"] - productos_agrupados["ventas"]).round(0)
-            productos_agrupados["inventario"] = productos_agrupados["inventario"].apply(lambda x: max(x, 0))
-            productos_agrupados["unidades"] = (productos_agrupados["ventas"] - productos_agrupados["inventario"]).round(0)
-            productos_agrupados["unidades"] = productos_agrupados["unidades"].apply(lambda x: max(x, 0))
-            productos_agrupados["total x ref"] = productos_agrupados["unidades"] * productos_agrupados["total unitario"]
+            productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas"]).round(0)
+            productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
+            productos_filtrados["unidades"] = (productos_filtrados["ventas"] - productos_filtrados["inventario"]).round(0)
+            productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
+
+            # Calcular Total x Ref
+            productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
 
             # **Tabla Final: Pedido (Editable)**
             st.write("### Pedido")
             productos_editados = st.data_editor(
-                productos_agrupados,
+                productos_filtrados[["producto", "ventas", "inventario", "unidades", "vr und compra", "total x ref"]],
                 column_config={
                     "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
                     "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
-                    "total unitario": st.column_config.NumberColumn("Total Unitario", format="%.2f"),
+                    "vr und compra": st.column_config.NumberColumn("VR UND COMPRA", format="%.2f"),
                     "ventas": st.column_config.NumberColumn("Ventas", format="%d"),
                 },
                 num_rows="fixed"
             )
+
+            # Recalcular unidades si el inventario es editado
+            productos_editados["unidades"] = (productos_editados["ventas"] - productos_editados["inventario"]).round(0)
+            productos_editados["unidades"] = productos_editados["unidades"].apply(lambda x: max(x, 0))
+            productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
+
+            # Mostrar la tabla final actualizada
+            st.dataframe(productos_editados)
 
             # Resumen del Pedido
             total_general = productos_editados["total x ref"].sum()
