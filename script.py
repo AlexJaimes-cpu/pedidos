@@ -30,10 +30,12 @@ archivo_compras = st.file_uploader("Sube el archivo de compras (CSV):", type=["c
 
 if archivo_ventas and archivo_compras:
     try:
+        # Limpiar y normalizar los datos
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
 
-        from datetime import date, datetime
+        # Importar módulos necesarios
+        from datetime import date, datetime, timedelta
 
         # Parámetros del pedido
         st.subheader("Parámetros del Pedido")
@@ -52,10 +54,12 @@ if archivo_ventas and archivo_compras:
             format_func=lambda x: punto_venta_opciones[x]
         )
 
-        # Filtro de Rango de Fechas con Restricción
-        min_fecha = compras_limpias["fecha"].min().date()
-        max_fecha = compras_limpias["fecha"].max().date()
+        # Filtro de Rango de Fechas - Solo últimos 30 días
         st.subheader("Filtro de Rango de Fechas")
+
+        max_fecha = compras_limpias["fecha"].max().date()  # Última fecha en compras
+        min_fecha = max_fecha - timedelta(days=30)  # Últimos 30 días desde la última fecha
+
         rango_fechas = st.date_input(
             "Selecciona el rango de fechas para las compras:",
             value=(min_fecha, max_fecha),
@@ -66,8 +70,7 @@ if archivo_ventas and archivo_compras:
         if len(rango_fechas) == 2:
             fecha_inicio = datetime.combine(rango_fechas[0], datetime.min.time())
             fecha_fin = datetime.combine(rango_fechas[1], datetime.min.time())
-            dias_rango = (fecha_fin - fecha_inicio).days + 1
-            st.write(f"**Días a calcular:** {dias_rango}")
+            dias_rango = (fecha_fin - fecha_inicio).days + 1  # Calcular número de días
 
             # Filtrar productos según el rango de fechas
             compras_filtradas = compras_limpias[
@@ -76,7 +79,7 @@ if archivo_ventas and archivo_compras:
             ]
 
             # Calcular ventas en rango correctamente
-            ventas_limpias["ventas en rango"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
+            ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] / 30) * dias_rango
 
             # Filtrar productos por punto de venta y rango de fechas
             productos_filtrados = pd.merge(
@@ -84,52 +87,27 @@ if archivo_ventas and archivo_compras:
                 left_on="producto", right_on="nombre", how="inner"
             )
 
-            # Obtener el total unitario más reciente de postobon_sas_limpio
-            productos_filtrados["total unitario"] = productos_filtrados.groupby("producto")["total unitario"].transform("last")
+            # Sumar las ventas y compras por producto
+            productos_agrupados = productos_filtrados.groupby("producto").agg({
+                "ventas en rango": "sum",
+                "cantidad": "sum",
+                "total unitario": "mean"
+            }).reset_index()
 
-            # Calcular inventario y unidades
-            productos_filtrados["inventario"] = productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]
-            productos_filtrados["unidades"] = productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]
-            productos_filtrados["unidades"] = productos_filtrados["unidades"].round(0)
+            # Calcular inventario, unidades y total por referencia
+            productos_agrupados["inventario"] = productos_agrupados["cantidad"] - productos_agrupados["ventas en rango"]
+            productos_agrupados["inventario"] = productos_agrupados["inventario"].apply(lambda x: max(x, 0))
+            productos_agrupados["unidades"] = productos_agrupados["ventas en rango"] - productos_agrupados["inventario"]
+            productos_agrupados["unidades"] = productos_agrupados["unidades"].apply(lambda x: max(x, 0))
+            productos_agrupados["total x ref"] = productos_agrupados["unidades"] * productos_agrupados["total unitario"]
 
-            # Tabla Editable
-            productos_editados = st.data_editor(
-                productos_filtrados,
-                column_config={
-                    "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
-                    "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
-                    "total unitario": st.column_config.NumberColumn("Total Unitario", format="%.2f"),
-                },
-                num_rows="fixed"
-            )
-
-            # Otros Productos (No Vendidos)
-            otros_productos = compras_limpias[~compras_limpias["producto"].isin(productos_filtrados["producto"])]
-            st.subheader("Otros Productos")
-            otros_productos["seleccionado"] = False
-            otros_editados = st.data_editor(otros_productos, column_config={
-                "seleccionado": st.column_config.CheckboxColumn("Agregar al Pedido")
-            })
-
-            # Filtrar productos seleccionados
-            productos_seleccionados = productos_editados.append(otros_editados[otros_editados["seleccionado"] == True])
-
-            # Calcular Total x Ref
-            productos_seleccionados["total x ref"] = productos_seleccionados["unidades"] * productos_seleccionados["total unitario"]
-
-            # Mostrar tabla final
+            # Mostrar la tabla final
             st.write("### Pedido")
-            st.dataframe(productos_seleccionados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+            st.dataframe(productos_agrupados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
 
             # Resumen del Pedido
-            total_general = productos_seleccionados["total x ref"].sum()
+            total_general = productos_agrupados["total x ref"].sum()
             st.write(f"Total del Pedido: ${total_general:.2f}")
-
-            # Botón para Exportar Pedido
-            if st.button("Exportar Pedido a CSV"):
-                productos_seleccionados.to_csv("pedido_exportado.csv", index=False)
-                st.success("Pedido exportado correctamente.")
-
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
 
