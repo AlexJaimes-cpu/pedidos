@@ -88,7 +88,7 @@ if archivo_ventas and archivo_compras:
                 left_on="producto", right_on="nombre", how="inner"
             )
 
-            # Obtener "VR UND COMPRA" (Total Unitario) con la fecha más reciente
+            # Obtener "VR UND COMPRA" con la fecha más reciente
             productos_filtrados["vr und compra"] = productos_filtrados.groupby("producto")["total unitario"].transform("last")
 
             # Calcular inventario y unidades
@@ -113,12 +113,13 @@ if archivo_ventas and archivo_compras:
                 num_rows="fixed"
             )
 
-            # Recalcular unidades si el inventario es editado
+            # **Recalcular Unidades y Total x Ref en la misma tabla**
             productos_editados["unidades"] = (productos_editados["ventas"] - productos_editados["inventario"]).round(0)
             productos_editados["unidades"] = productos_editados["unidades"].apply(lambda x: max(x, 0))
             productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
 
-            # Mostrar la tabla final actualizada
+            # **Actualizar la tabla en pantalla sin crear una nueva**
+            st.write("### Pedido Actualizado")
             st.dataframe(productos_editados)
 
             # Resumen del Pedido
