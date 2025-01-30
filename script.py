@@ -91,21 +91,29 @@ if archivo_ventas and archivo_compras:
                 "total unitario": "mean"
             }).reset_index()
 
-            # Inventario editable
-            productos_agrupados["inventario"] = st.data_editor(
-                productos_agrupados["cantidad"] - productos_agrupados["ventas en rango"]
-            ).apply(lambda x: max(x, 0))
+            # Calcular inventario y unidades
+            productos_agrupados["inventario"] = productos_agrupados["cantidad"] - productos_agrupados["ventas en rango"]
+            productos_agrupados["inventario"] = productos_agrupados["inventario"].apply(lambda x: max(x, 0))
+            productos_agrupados["unidades"] = productos_agrupados["ventas en rango"] - productos_agrupados["inventario"]
+            productos_agrupados["unidades"] = productos_agrupados["unidades"].apply(lambda x: max(x, 0))
 
-            # Unidades editables
-            productos_agrupados["unidades"] = st.data_editor(
-                productos_agrupados["ventas en rango"] - productos_agrupados["inventario"]
-            ).apply(lambda x: max(x, 0))
+            # Hacer Inventario y Unidades editables directamente en la tabla
+            productos_editados = st.data_editor(
+                productos_agrupados,
+                column_config={
+                    "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
+                    "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
+                    "total unitario": st.column_config.NumberColumn("Total Unitario", format="%.2f"),
+                    "ventas en rango": st.column_config.NumberColumn("Ventas en Rango", format="%d"),
+                },
+                num_rows="fixed"
+            )
 
             # Casilla de verificación para incluir/excluir producto
-            productos_agrupados["incluir pedido"] = st.checkbox("Incluir en pedido", True)
+            productos_editados["incluir pedido"] = st.checkbox("Incluir en pedido", True)
 
             # Filtrar solo productos marcados para incluir
-            productos_finales = productos_agrupados[productos_agrupados["incluir pedido"] == True]
+            productos_finales = productos_editados[productos_editados["incluir pedido"] == True]
 
             # Calcular Total x Ref
             productos_finales["total x ref"] = productos_finales["unidades"] * productos_finales["total unitario"]
