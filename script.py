@@ -88,8 +88,15 @@ if archivo_ventas and archivo_compras:
                 left_on="producto", right_on="nombre", how="inner"
             )
 
+            # **Eliminar duplicados: Solo un registro por producto**
+            productos_filtrados = productos_filtrados.groupby("producto", as_index=False).agg({
+                "ventas": "sum",
+                "cantidad": "sum",
+                "precio": "last",  # Toma el último precio (fecha más reciente)
+            })
+
             # Obtener "VR UND COMPRA" con la fecha más reciente
-            productos_filtrados["vr und compra"] = productos_filtrados.groupby("producto")["precio"].transform("last")
+            productos_filtrados["vr und compra"] = productos_filtrados["precio"]
 
             # Calcular inventario y unidades
             productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas"]).round(0)
