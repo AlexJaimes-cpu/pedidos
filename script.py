@@ -89,8 +89,7 @@ if archivo_ventas and archivo_compras:
             )
 
             # Obtener "VR UND COMPRA" con la fecha más reciente
-            productos_filtrados["vr und compra"] = productos_filtrados.sort_values(by="fecha", ascending=False) \
-                .groupby("producto")["precio"].transform("first")
+            productos_filtrados["vr und compra"] = productos_filtrados.groupby("producto")["precio"].transform("last")
 
             # Calcular inventario y unidades
             productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas"]).round(0)
