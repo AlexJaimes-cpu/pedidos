@@ -88,7 +88,7 @@ if archivo_ventas and archivo_compras:
                 left_on="producto", right_on="nombre", how="inner"
             )
 
-            # **Eliminar duplicados: Solo un registro por producto**
+            # **Eliminar duplicados y sumar correctamente las ventas**
             productos_filtrados = productos_filtrados.groupby("producto", as_index=False).agg({
                 "ventas": "sum",
                 "cantidad": "sum",
