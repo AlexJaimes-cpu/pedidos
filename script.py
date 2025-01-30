@@ -102,7 +102,8 @@ if archivo_ventas and archivo_compras:
             productos_agrupados["unidades"] = productos_agrupados["unidades"].apply(lambda x: max(x, 0))
             productos_agrupados["total x ref"] = productos_agrupados["unidades"] * productos_agrupados["total unitario"]
 
-            # Tabla Editable
+            # **Tabla Final: Pedido (Editable)**
+            st.write("### Pedido")
             productos_editados = st.data_editor(
                 productos_agrupados,
                 column_config={
@@ -114,13 +115,10 @@ if archivo_ventas and archivo_compras:
                 num_rows="fixed"
             )
 
-            # Mostrar la tabla final
-            st.write("### Pedido")
-            st.dataframe(productos_editados[["producto", "ventas", "inventario", "unidades", "total unitario", "total x ref"]])
-
             # Resumen del Pedido
             total_general = productos_editados["total x ref"].sum()
             st.write(f"Total del Pedido: ${total_general:.2f}")
+
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
 
