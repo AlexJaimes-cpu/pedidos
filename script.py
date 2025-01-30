@@ -100,7 +100,7 @@ if archivo_ventas and archivo_compras:
             # Calcular Total x Ref
             productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
 
-            # **Tabla Final: Pedido (Editable y sin duplicados)**
+            # **Tabla Final: Pedido (Editable y sin tablas duplicadas)**
             st.write("### Pedido")
             productos_editados = st.data_editor(
                 productos_filtrados[["producto", "ventas", "inventario", "unidades", "vr und compra", "total x ref"]],
@@ -118,11 +118,7 @@ if archivo_ventas and archivo_compras:
             productos_editados["unidades"] = productos_editados["unidades"].apply(lambda x: max(x, 0))
             productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
 
-            # **Mostrar la tabla única final**
-            st.write("### Pedido Actualizado")
-            st.dataframe(productos_editados)
-
-            # Resumen del Pedido
+            # **Resumen del Pedido**
             total_general = productos_editados["total x ref"].sum()
             st.write(f"Total del Pedido: ${total_general:.2f}")
 
@@ -131,3 +127,4 @@ if archivo_ventas and archivo_compras:
 
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
+
