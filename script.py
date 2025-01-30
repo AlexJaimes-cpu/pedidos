@@ -30,11 +30,9 @@ archivo_compras = st.file_uploader("Sube el archivo de compras (CSV):", type=["c
 
 if archivo_ventas and archivo_compras:
     try:
-        # Limpiar y normalizar los datos
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
 
-        # Importar módulos necesarios
         from datetime import date, datetime, timedelta
 
         # Parámetros del pedido
@@ -57,8 +55,8 @@ if archivo_ventas and archivo_compras:
         # Filtro de Rango de Fechas - Solo últimos 30 días
         st.subheader("Filtro de Rango de Fechas")
 
-        max_fecha = compras_limpias["fecha"].max().date()  # Última fecha en compras
-        min_fecha = max_fecha - timedelta(days=30)  # Últimos 30 días desde la última fecha
+        max_fecha = compras_limpias["fecha"].max().date()
+        min_fecha = max_fecha - timedelta(days=30)
 
         rango_fechas = st.date_input(
             "Selecciona el rango de fechas para las compras:",
@@ -67,10 +65,13 @@ if archivo_ventas and archivo_compras:
             max_value=max_fecha
         )
 
+        # Nueva Casilla: Días a Calcular
         if len(rango_fechas) == 2:
             fecha_inicio = datetime.combine(rango_fechas[0], datetime.min.time())
             fecha_fin = datetime.combine(rango_fechas[1], datetime.min.time())
-            dias_rango = (fecha_fin - fecha_inicio).days + 1  # Calcular número de días
+            dias_rango = (fecha_fin - fecha_inicio).days + 1  # Calcular días
+
+            st.number_input("Días a Calcular:", value=dias_rango, disabled=True)
 
             # Filtrar productos según el rango de fechas
             compras_filtradas = compras_limpias[
