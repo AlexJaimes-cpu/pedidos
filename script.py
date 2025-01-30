@@ -6,7 +6,7 @@ def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["nombre"] = df["nombre"].str.strip().str.lower()  # Normalizar nombres de productos
-    # Asegurarse de que las columnas de ventas sean numéricas
+    # Asegurar que las columnas de ventas sean numéricas
     for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -16,7 +16,7 @@ def limpiar_compras(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["producto"] = df["producto"].str.strip().str.lower()  # Normalizar nombres de productos
-    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")  # Convertir columna "fecha" a datetime
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")  # Convertir "fecha" a datetime
     df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)  # Convertir Total Unitario a float
     df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)  # Convertir Cantidad a float
     df = df.dropna(subset=["fecha"])  # Eliminar filas con fechas inválidas
@@ -65,6 +65,7 @@ if archivo_ventas and archivo_compras:
         if len(rango_fechas) == 2:
             fecha_inicio = datetime.combine(rango_fechas[0], datetime.min.time())
             fecha_fin = datetime.combine(rango_fechas[1], datetime.min.time())
+            dias_rango = (fecha_fin - fecha_inicio).days + 1  # Calcular número de días
 
             # Filtrar productos según el rango de fechas
             compras_filtradas = compras_limpias[
@@ -72,8 +73,10 @@ if archivo_ventas and archivo_compras:
                 (compras_limpias["fecha"] <= fecha_fin)
             ]
 
+            # Calcular ventas en rango correctamente
+            ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] / 30) * dias_rango
+
             # Filtrar productos por punto de venta y rango de fechas
-            ventas_limpias["ventas en rango"] = ventas_limpias[punto_venta_columna] / 30
             productos_filtrados = pd.merge(
                 compras_filtradas, ventas_limpias,
                 left_on="producto", right_on="nombre", how="inner"
