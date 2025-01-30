@@ -16,7 +16,7 @@ def limpiar_compras(archivo):
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["producto"] = df["producto"].str.strip().str.lower()
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
-    df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)
+    df["precio"] = pd.to_numeric(df["precio"], errors="coerce").fillna(0)  # VR UND COMPRA
     df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)
     df = df.dropna(subset=["fecha"])
     return df
@@ -89,7 +89,7 @@ if archivo_ventas and archivo_compras:
             )
 
             # Obtener "VR UND COMPRA" con la fecha más reciente
-            productos_filtrados["vr und compra"] = productos_filtrados.groupby("producto")["total unitario"].transform("last")
+            productos_filtrados["vr und compra"] = productos_filtrados.groupby("producto")["precio"].transform("last")
 
             # Calcular inventario y unidades
             productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas"]).round(0)
@@ -100,7 +100,7 @@ if archivo_ventas and archivo_compras:
             # Calcular Total x Ref
             productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
 
-            # **Tabla Final: Pedido (Editable)**
+            # **Tabla Final: Pedido (Editable y sin duplicados)**
             st.write("### Pedido")
             productos_editados = st.data_editor(
                 productos_filtrados[["producto", "ventas", "inventario", "unidades", "vr und compra", "total x ref"]],
@@ -118,7 +118,7 @@ if archivo_ventas and archivo_compras:
             productos_editados["unidades"] = productos_editados["unidades"].apply(lambda x: max(x, 0))
             productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
 
-            # **Actualizar la tabla en pantalla sin crear una nueva**
+            # **Mostrar la tabla única final**
             st.write("### Pedido Actualizado")
             st.dataframe(productos_editados)
 
