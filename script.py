@@ -6,7 +6,6 @@ def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["nombre"] = df["nombre"].str.strip().str.lower()  # Normalizar nombres de productos
-    # Asegurar que las columnas de ventas sean numéricas
     for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -15,11 +14,11 @@ def limpiar_ventas(archivo):
 def limpiar_compras(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
-    df["producto"] = df["producto"].str.strip().str.lower()  # Normalizar nombres de productos
-    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")  # Convertir "fecha" a datetime
-    df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)  # Convertir Total Unitario a float
-    df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)  # Convertir Cantidad a float
-    df = df.dropna(subset=["fecha"])  # Eliminar filas con fechas inválidas
+    df["producto"] = df["producto"].str.strip().str.lower()
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+    df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)
+    df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)
+    df = df.dropna(subset=["fecha"])
     return df
 
 # Interfaz Streamlit
@@ -31,11 +30,9 @@ archivo_compras = st.file_uploader("Sube el archivo de compras (CSV):", type=["c
 
 if archivo_ventas and archivo_compras:
     try:
-        # Limpiar y normalizar los datos
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias = limpiar_compras(archivo_compras)
 
-        # Importar módulos necesarios
         from datetime import date, datetime
 
         # Parámetros del pedido
@@ -55,17 +52,22 @@ if archivo_ventas and archivo_compras:
             format_func=lambda x: punto_venta_opciones[x]
         )
 
-        # Filtro de Rango de Fechas
+        # Filtro de Rango de Fechas con Restricción
+        min_fecha = compras_limpias["fecha"].min().date()
+        max_fecha = compras_limpias["fecha"].max().date()
         st.subheader("Filtro de Rango de Fechas")
         rango_fechas = st.date_input(
             "Selecciona el rango de fechas para las compras:",
-            value=(compras_limpias["fecha"].min().date(), compras_limpias["fecha"].max().date())
+            value=(min_fecha, max_fecha),
+            min_value=min_fecha,
+            max_value=max_fecha
         )
 
         if len(rango_fechas) == 2:
             fecha_inicio = datetime.combine(rango_fechas[0], datetime.min.time())
             fecha_fin = datetime.combine(rango_fechas[1], datetime.min.time())
-            dias_rango = (fecha_fin - fecha_inicio).days + 1  # Calcular número de días
+            dias_rango = (fecha_fin - fecha_inicio).days + 1
+            st.write(f"**Días a calcular:** {dias_rango}")
 
             # Filtrar productos según el rango de fechas
             compras_filtradas = compras_limpias[
@@ -74,7 +76,7 @@ if archivo_ventas and archivo_compras:
             ]
 
             # Calcular ventas en rango correctamente
-            ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] / 30) * dias_rango
+            ventas_limpias["ventas en rango"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
 
             # Filtrar productos por punto de venta y rango de fechas
             productos_filtrados = pd.merge(
@@ -82,27 +84,52 @@ if archivo_ventas and archivo_compras:
                 left_on="producto", right_on="nombre", how="inner"
             )
 
-            # Sumar las ventas y compras por producto
-            productos_agrupados = productos_filtrados.groupby("producto").agg({
-                "ventas en rango": "sum",
-                "cantidad": "sum",
-                "total unitario": "mean"
-            }).reset_index()
+            # Obtener el total unitario más reciente de postobon_sas_limpio
+            productos_filtrados["total unitario"] = productos_filtrados.groupby("producto")["total unitario"].transform("last")
 
-            # Calcular inventario, unidades y total por referencia
-            productos_agrupados["inventario"] = productos_agrupados["cantidad"] - productos_agrupados["ventas en rango"]
-            productos_agrupados["inventario"] = productos_agrupados["inventario"].apply(lambda x: max(x, 0))
-            productos_agrupados["unidades"] = productos_agrupados["ventas en rango"] - productos_agrupados["inventario"]
-            productos_agrupados["unidades"] = productos_agrupados["unidades"].apply(lambda x: max(x, 0))
-            productos_agrupados["total x ref"] = productos_agrupados["unidades"] * productos_agrupados["total unitario"]
+            # Calcular inventario y unidades
+            productos_filtrados["inventario"] = productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]
+            productos_filtrados["unidades"] = productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]
+            productos_filtrados["unidades"] = productos_filtrados["unidades"].round(0)
 
-            # Mostrar la tabla final
+            # Tabla Editable
+            productos_editados = st.data_editor(
+                productos_filtrados,
+                column_config={
+                    "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
+                    "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
+                    "total unitario": st.column_config.NumberColumn("Total Unitario", format="%.2f"),
+                },
+                num_rows="fixed"
+            )
+
+            # Otros Productos (No Vendidos)
+            otros_productos = compras_limpias[~compras_limpias["producto"].isin(productos_filtrados["producto"])]
+            st.subheader("Otros Productos")
+            otros_productos["seleccionado"] = False
+            otros_editados = st.data_editor(otros_productos, column_config={
+                "seleccionado": st.column_config.CheckboxColumn("Agregar al Pedido")
+            })
+
+            # Filtrar productos seleccionados
+            productos_seleccionados = productos_editados.append(otros_editados[otros_editados["seleccionado"] == True])
+
+            # Calcular Total x Ref
+            productos_seleccionados["total x ref"] = productos_seleccionados["unidades"] * productos_seleccionados["total unitario"]
+
+            # Mostrar tabla final
             st.write("### Pedido")
-            st.dataframe(productos_agrupados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+            st.dataframe(productos_seleccionados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
 
             # Resumen del Pedido
-            total_general = productos_agrupados["total x ref"].sum()
+            total_general = productos_seleccionados["total x ref"].sum()
             st.write(f"Total del Pedido: ${total_general:.2f}")
+
+            # Botón para Exportar Pedido
+            if st.button("Exportar Pedido a CSV"):
+                productos_seleccionados.to_csv("pedido_exportado.csv", index=False)
+                st.success("Pedido exportado correctamente.")
+
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
 
