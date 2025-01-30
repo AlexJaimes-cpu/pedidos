@@ -80,7 +80,7 @@ if archivo_ventas and archivo_compras:
             ]
 
             # Calcular ventas en rango correctamente
-            ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] / 30) * dias_rango
+            ventas_limpias["ventas"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
 
             # Filtrar productos por punto de venta y rango de fechas
             productos_filtrados = pd.merge(
@@ -90,24 +90,36 @@ if archivo_ventas and archivo_compras:
 
             # Sumar las ventas y compras por producto
             productos_agrupados = productos_filtrados.groupby("producto").agg({
-                "ventas en rango": "sum",
+                "ventas": "sum",
                 "cantidad": "sum",
                 "total unitario": "mean"
             }).reset_index()
 
-            # Calcular inventario, unidades y total por referencia
-            productos_agrupados["inventario"] = productos_agrupados["cantidad"] - productos_agrupados["ventas en rango"]
+            # Calcular inventario y unidades
+            productos_agrupados["inventario"] = (productos_agrupados["cantidad"] - productos_agrupados["ventas"]).round(0)
             productos_agrupados["inventario"] = productos_agrupados["inventario"].apply(lambda x: max(x, 0))
-            productos_agrupados["unidades"] = productos_agrupados["ventas en rango"] - productos_agrupados["inventario"]
+            productos_agrupados["unidades"] = (productos_agrupados["ventas"] - productos_agrupados["inventario"]).round(0)
             productos_agrupados["unidades"] = productos_agrupados["unidades"].apply(lambda x: max(x, 0))
             productos_agrupados["total x ref"] = productos_agrupados["unidades"] * productos_agrupados["total unitario"]
 
+            # Tabla Editable
+            productos_editados = st.data_editor(
+                productos_agrupados,
+                column_config={
+                    "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
+                    "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
+                    "total unitario": st.column_config.NumberColumn("Total Unitario", format="%.2f"),
+                    "ventas": st.column_config.NumberColumn("Ventas", format="%d"),
+                },
+                num_rows="fixed"
+            )
+
             # Mostrar la tabla final
             st.write("### Pedido")
-            st.dataframe(productos_agrupados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+            st.dataframe(productos_editados[["producto", "ventas", "inventario", "unidades", "total unitario", "total x ref"]])
 
             # Resumen del Pedido
-            total_general = productos_agrupados["total x ref"].sum()
+            total_general = productos_editados["total x ref"].sum()
             st.write(f"Total del Pedido: ${total_general:.2f}")
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
