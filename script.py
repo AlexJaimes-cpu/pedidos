@@ -22,6 +22,7 @@ def limpiar_compras(archivo):
     return df
 
 # Interfaz Streamlit
+st.set_page_config(layout="wide")  # Hace que la tabla sea responsive
 st.title("Formato de Pedido")
 
 # Carga de archivos
@@ -101,13 +102,15 @@ if archivo_ventas and archivo_compras:
             # Calcular inventario y unidades
             productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]).round(0)
             productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
+
+            # **Modificar unidades en tiempo real cuando cambia inventario**
             productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).round(0)
             productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
 
             # Calcular Total x Ref
             productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
 
-            # **Tabla Final: Pedido (Editable y sin tablas duplicadas)**
+            # **Tabla Final: Pedido (Editable y responsive)**
             st.write("### Pedido")
             productos_editados = st.data_editor(
                 productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "vr und compra", "total x ref"]],
@@ -120,7 +123,7 @@ if archivo_ventas and archivo_compras:
                 num_rows="fixed"
             )
 
-            # **Recalcular Unidades y Total x Ref en la misma tabla**
+            # **Recalcular Unidades y Total x Ref en la misma tabla cuando se edita Inventario**
             productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).round(0)
             productos_editados["unidades"] = productos_editados["unidades"].apply(lambda x: max(x, 0))
             productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
