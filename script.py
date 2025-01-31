@@ -19,7 +19,13 @@ def limpiar_compras(archivo):
     df["precio"] = pd.to_numeric(df["precio"], errors="coerce").fillna(0)  # VR UND COMPRA
     df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)
     df = df.dropna(subset=["fecha"])
-    return df
+    
+    # Filtrar solo los últimos 90 días
+    max_fecha = df["fecha"].max()
+    min_fecha = max_fecha - pd.Timedelta(days=90)
+    df = df[df["fecha"] >= min_fecha]
+
+    return df, min_fecha.date(), max_fecha.date()  # Retornar el rango de fechas filtrado
 
 # Interfaz Streamlit
 st.set_page_config(layout="wide")  # Hace que la tabla sea responsive
@@ -32,9 +38,12 @@ archivo_compras = st.file_uploader("Sube el archivo de compras (CSV):", type=["c
 if archivo_ventas and archivo_compras:
     try:
         ventas_limpias = limpiar_ventas(archivo_ventas)
-        compras_limpias = limpiar_compras(archivo_compras)
+        compras_limpias, min_fecha, max_fecha = limpiar_compras(archivo_compras)
 
         from datetime import date, datetime, timedelta
+
+        # Mostrar rango de fechas del archivo de compras filtrado
+        st.success(f"Archivos cargados correctamente. Rango de fechas en compras: {min_fecha} - {max_fecha}")
 
         # Parámetros del pedido
         st.subheader("Parámetros del Pedido")
@@ -53,11 +62,8 @@ if archivo_ventas and archivo_compras:
             format_func=lambda x: punto_venta_opciones[x]
         )
 
-        # Filtro de Rango de Fechas - Solo últimos 30 días
+        # Filtro de Rango de Fechas - Solo en el rango filtrado (90 días)
         st.subheader("Filtro de Rango de Fechas")
-
-        max_fecha = compras_limpias["fecha"].max().date()
-        min_fecha = max_fecha - timedelta(days=30)
 
         rango_fechas = st.date_input(
             "Selecciona el rango de fechas para las compras:",
