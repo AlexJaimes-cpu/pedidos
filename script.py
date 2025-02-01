@@ -2,16 +2,14 @@ import pandas as pd
 import streamlit as st
 from datetime import date, datetime, timedelta
 import io
-from fpdf import FPDF  # Asegúrate de tener instalada la librería fpdf (o fpdf2)
 
 # ---------------------------
-# Funciones de lectura y limpieza
+# Funciones de lectura y limpieza (sin cambios)
 # ---------------------------
 def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["nombre"] = df["nombre"].str.strip().str.lower()  # Normalizar nombres de productos
-    # Convertir columnas de ventas a numérico
     for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
@@ -22,7 +20,7 @@ def limpiar_compras(archivo):
     df.columns = df.columns.str.strip().str.lower()  # Normalizar nombres de columnas
     df["producto"] = df["producto"].str.strip().str.lower()
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
-    # Usamos la columna "total unitario" para obtener el VR UND COMPRA
+    # Se conserva la lógica original pero se utilizará luego la columna "total unitario"
     df["total unitario"] = pd.to_numeric(df["total unitario"], errors="coerce").fillna(0)
     df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)
     df = df.dropna(subset=["fecha"])
@@ -32,17 +30,18 @@ def limpiar_compras(archivo):
     min_fecha = max_fecha - pd.Timedelta(days=90)
     df = df[df["fecha"] >= min_fecha]
 
-    return df, min_fecha.date(), max_fecha.date()  # Retornar el rango de fechas filtrado
+    return df, min_fecha.date(), max_fecha.date()
 
 # ---------------------------
-# Función para convertir DataFrame a PDF
+# Función para generar PDF a partir de un DataFrame
 # ---------------------------
 def dataframe_a_pdf(df):
+    from fpdf import FPDF  # Asegúrate de tener instalado fpdf o fpdf2: pip install fpdf2
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=10)
     
-    # Ancho de cada columna (ajustar según número de columnas)
+    # Ancho de cada columna (ajustable según cantidad de columnas)
     col_width = pdf.w / (len(df.columns) + 1)
     row_height = pdf.font_size * 1.5
 
@@ -57,7 +56,6 @@ def dataframe_a_pdf(df):
             pdf.cell(col_width, row_height, str(item), border=1)
         pdf.ln(row_height)
     
-    # Obtener el PDF en bytes
     pdf_buffer = io.BytesIO()
     pdf.output(pdf_buffer)
     pdf_bytes = pdf_buffer.getvalue()
@@ -78,7 +76,6 @@ if archivo_ventas and archivo_compras:
         ventas_limpias = limpiar_ventas(archivo_ventas)
         compras_limpias, min_fecha, max_fecha = limpiar_compras(archivo_compras)
 
-        # Mostrar rango de fechas del archivo de compras filtrado
         st.success(f"Archivos cargados correctamente. Rango de fechas en compras: {min_fecha} - {max_fecha}")
 
         # Parámetros del pedido
@@ -98,7 +95,7 @@ if archivo_ventas and archivo_compras:
             format_func=lambda x: punto_venta_opciones[x]
         )
 
-        # Filtro de Rango de Fechas - Solo en el rango filtrado (90 días)
+        # Filtro de Rango de Fechas - se usa el mismo rango que funcionaba bien
         st.subheader("Filtro de Rango de Fechas")
         rango_fechas = st.date_input(
             "Selecciona el rango de fechas para las compras:",
@@ -114,74 +111,71 @@ if archivo_ventas and archivo_compras:
 
             st.number_input("Días a Calcular:", value=dias_rango, disabled=True)
 
-            # Filtrar compras por rango de fechas
+            # Filtrar compras según el rango de fechas seleccionado
             compras_filtradas = compras_limpias[
                 (compras_limpias["fecha"] >= fecha_inicio) & 
                 (compras_limpias["fecha"] <= fecha_fin)
             ]
 
-            # Calcular ventas en rango (se asume promedio mensual /30 días)
+            # Cálculo de ventas en rango (se utiliza la misma fórmula que funcionaba)
             ventas_limpias["ventas en rango"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
 
-            # Unir productos (inner join) entre compras y ventas
+            # Unión de productos entre compras y ventas
             productos_filtrados = pd.merge(
                 compras_filtradas, ventas_limpias,
                 left_on="producto", right_on="nombre", how="inner"
             )
 
-            # Agrupar por producto y sumar las ventas y cantidades;
-            # Se toma el último "total unitario" como VR UND COMPRA
+            # Agrupación: se suma las ventas y las cantidades, y se toma el último "total unitario"
             productos_filtrados = productos_filtrados.groupby("producto", as_index=False).agg({
                 "ventas en rango": "sum",
                 "cantidad": "sum",
                 "total unitario": "last"
             })
 
-            # Renombrar columna para mayor claridad
-            productos_filtrados = productos_filtrados.rename(columns={"total unitario": "vr und compra"})
+            # Se utiliza la columna "total unitario" como VR UND COMPRA
+            productos_filtrados["vr und compra"] = productos_filtrados["total unitario"]
 
-            # Calcular inventario (cantidad disponible menos ventas)
+            # Cálculo del inventario: cantidad - ventas en rango (mínimo 0)
             productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]).round(0)
             productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
 
-            # Calcular unidades a pedir: ventas en rango - inventario (si es negativo, se pone 0)
+            # Cálculo de unidades a pedir: ventas en rango - inventario (mínimo 0)
             productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).round(0)
             productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
 
-            # Calcular Total x Ref: multiplicar unidades por VR UND COMPRA
+            # Cálculo del total por referencia: unidades * VR UND COMPRA
             productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
 
-            # Mostrar tabla editable
+            # Mostrar la tabla del Pedido (se permite la edición de "inventario" y "unidades")
             st.write("### Pedido")
-            # Se permite editar manualmente "inventario" y "unidades"
-            columnas_editar = ["producto", "ventas en rango", "inventario", "unidades", "vr und compra", "total x ref"]
+            columnas_tabla = ["producto", "ventas en rango", "inventario", "unidades", "vr und compra", "total x ref"]
             productos_editados = st.data_editor(
-                productos_filtrados[columnas_editar],
+                productos_filtrados[columnas_tabla],
                 column_config={
                     "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
                     "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
                     "vr und compra": st.column_config.NumberColumn("VR UND COMPRA", format="%.2f"),
                     "ventas en rango": st.column_config.NumberColumn("Ventas en Rango", format="%d"),
-                    "total x ref": st.column_config.NumberColumn("Total x Ref", format="%.2f", disabled=True),
+                    # Se deshabilita la edición de "total x ref" ya que se calcula automáticamente
+                    "total x ref": st.column_config.NumberColumn("Total x Ref", format="%.2f", disabled=True)
                 },
                 num_rows="fixed"
             )
 
-            # Botón para recalcular unidades según inventario
+            # Botón para recalcular las unidades según la fórmula: unidades = ventas en rango - inventario
             if st.button("Recalcular Unidades según Inventario"):
-                # Al recalcular se utiliza la fórmula: unidades = max(ventas en rango - inventario, 0)
-                productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).round(0).clip(lower=0)
-                # Actualizamos el total
+                productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).round(0)
+                productos_editados["unidades"] = productos_editados["unidades"].apply(lambda x: max(x, 0))
                 productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
 
-            # Si el usuario modificó manualmente "unidades", se actualiza el total automáticamente:
+            # Recalcular Total x Ref (en caso de que se editen manualmente las unidades)
             productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
 
-            # Mostrar resumen del pedido
             total_general = productos_editados["total x ref"].sum()
-            st.write(f"**Total del Pedido:** ${total_general:.2f}")
+            st.write(f"Total del Pedido: ${total_general:.2f}")
 
-            # Botón para descargar el PDF
+            # Botón para descargar el PDF del pedido
             pdf_bytes = dataframe_a_pdf(productos_editados)
             st.download_button(
                 label="Descargar Pedido en PDF",
@@ -189,7 +183,6 @@ if archivo_ventas and archivo_compras:
                 file_name="pedido.pdf",
                 mime="application/pdf"
             )
-
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
 
