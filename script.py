@@ -107,9 +107,49 @@ if archivo_ventas and archivo_compras:
             ]
             
             ventas_limpias["ventas en rango"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
-            
+
+            productos_filtrados = pd.merge(
+                compras_filtradas, ventas_limpias,
+                left_on="producto", right_on="nombre", how="inner"
+            )
+
+            productos_filtrados = productos_filtrados.groupby("producto", as_index=False).agg({
+                "ventas en rango": "sum",
+                "cantidad": "sum",
+                "total unitario": "last"
+            })
+
+            productos_filtrados["vr und compra"] = productos_filtrados["total unitario"]
+
+            productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]).round(0)
+            productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
+
+            productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).round(0)
+            productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
+
+            productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
+
+            st.write("### Pedido")
+            productos_editados = st.data_editor(
+                productos_filtrados[["producto", "inventario", "unidades", "total unitario", "total x ref"]],
+                column_config={
+                    "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
+                    "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
+                    "total unitario": st.column_config.NumberColumn("Total Unitario", format="%.2f", disabled=True),
+                    "total x ref": st.column_config.NumberColumn("Total x Ref", format="%.2f", disabled=True),
+                },
+                num_rows="fixed"
+            )
+
+            if st.button("Recalcular Unidades según Inventario"):
+                productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
+                productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["total unitario"]
+
+            total_general = productos_editados["total x ref"].sum()
+            st.write(f"Total del Pedido: ${total_general:.2f}")
+
             if st.button("Enviar Pedido"):
-                pedido_filtrado = compras_filtradas[compras_filtradas["cantidad"] > 0]
+                pedido_filtrado = productos_editados[productos_editados["unidades"] > 0]
                 if not pedido_filtrado.empty:
                     opciones = ["WhatsApp", "Guardar"]
                     accion = st.radio("¿Cómo desea enviar el pedido?", opciones)
@@ -119,5 +159,6 @@ if archivo_ventas and archivo_compras:
                         st.success("Pedido guardado exitosamente.")
                 else:
                     st.warning("No hay productos con unidades mayores a 0 para enviar.")
+
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
