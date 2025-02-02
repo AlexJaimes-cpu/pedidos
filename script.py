@@ -108,7 +108,9 @@ if archivo_ventas and archivo_compras:
                 (compras_limpias["fecha"] <= fecha_fin)
             ]
 
-            ventas_limpias["ventas en rango"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
+           ventas_limpias[punto_venta_columna] = pd.to_numeric(ventas_limpias[punto_venta_columna], errors="coerce").fillna(0)
+
+            ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] * (dias_rango / 30)).round(0)
 
             productos_filtrados = pd.merge(
                 compras_filtradas, ventas_limpias,
