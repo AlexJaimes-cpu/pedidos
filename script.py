@@ -103,20 +103,11 @@ if archivo_ventas and archivo_compras:
 
             st.number_input("Días a Calcular:", value=dias_rango, disabled=True)
 
-            compras_filtradas = compras_limpias[
-                (compras_limpias["fecha"] >= fecha_inicio) & 
-                (compras_limpias["fecha"] <= fecha_fin)
-            ]
+            ventas_limpias[punto_venta_columna] = pd.to_numeric(ventas_limpias[punto_venta_columna], errors="coerce").fillna(0)
+            
+            ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] * (dias_rango / 30)).round(0)
 
-         ventas_limpias[punto_venta_columna] = pd.to_numeric(ventas_limpias[punto_venta_columna], errors="coerce").fillna(0)
-
-ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] * (dias_rango / 30)).round(0)
-
-            productos_filtrados = pd.merge(
-                compras_filtradas, ventas_limpias,
-                left_on="producto", right_on="nombre", how="inner"
-            )
-
+            productos_filtrados = pd.merge(compras_limpias, ventas_limpias, left_on="producto", right_on="nombre", how="inner")
             productos_filtrados = productos_filtrados.groupby("producto", as_index=False).agg({
                 "ventas en rango": "sum",
                 "cantidad": "sum",
@@ -127,46 +118,9 @@ ventas_limpias["ventas en rango"] = (ventas_limpias[punto_venta_columna] * (dias
             productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]).clip(lower=0)
             productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
             productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
-
+            
             st.write("### Pedido")
-            productos_editados = st.data_editor(
-                productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "vr und compra", "total x ref"]],
-                column_config={
-                    "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
-                    "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
-                    "vr und compra": st.column_config.NumberColumn("VR UND COMPRA", format="%.2f"),
-                    "total x ref": st.column_config.NumberColumn("Total x Ref", format="%.2f", disabled=True),
-                },
-                num_rows="fixed"
-            )
-
-            if st.button("Recalcular Orden"):
-                productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
-                productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
-
-            total_general = productos_editados["total x ref"].sum()
-            st.write(f"Total del Pedido: ${total_general:.2f}")
-
-            if st.button("Enviar Orden"):
-                pedido_final = productos_editados[productos_editados["unidades"] > 0]
-                pdf_bytes = generar_pdf(pedido_final)
-
-                with st.expander("Vista previa del pedido en PDF"):
-                    st.download_button(
-                        label="Descargar Pedido en PDF",
-                        data=pdf_bytes,
-                        file_name="pedido.pdf",
-                        mime="application/pdf"
-                    )
-
-                if st.button("Enviar por WhatsApp"):
-                    st.success("Se abrirá WhatsApp para enviar el pedido (Funcionalidad a integrar).")
-
-                if st.button("Guardar Pedido"):
-                    st.success("Pedido guardado correctamente.")
-
-        else:
-            st.warning("Por favor selecciona un rango de fechas válido.")
-
+            st.dataframe(productos_filtrados)
+            
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
