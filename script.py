@@ -110,24 +110,17 @@ if archivo_ventas and archivo_compras:
 
             productos_filtrados = pd.merge(
                 compras_filtradas, ventas_limpias,
-                left_on="producto", right_on="nombre", how="inner"
-            )
-
-            productos_filtrados = productos_filtrados.groupby("producto", as_index=False).agg({
-                "ventas en rango": "sum",
-                "cantidad": "sum",
-                "total unitario": "last"
-            })
+                left_on="producto", right_on="nombre", how="outer"
+            ).fillna(0)
 
             productos_filtrados["vr und compra"] = productos_filtrados["total unitario"]
-
             productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]).round(0)
             productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
-
             productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).round(0)
             productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
-
             productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
+
+            productos_filtrados = productos_filtrados.sort_values(by=["unidades"], ascending=False)
 
             st.write("### Pedido")
             productos_editados = st.data_editor(
