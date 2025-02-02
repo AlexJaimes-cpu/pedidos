@@ -2,13 +2,13 @@ import pandas as pd
 import streamlit as st
 from datetime import date, datetime, timedelta
 import io
-from fpdf import FPDF  # Asegúrate de tener instalada la librería: pip install fpdf2
+from fpdf import FPDF  
 
 # ---------------------------
-# Funciones de lectura y limpieza
+# Funciones de lectura y limpieza (CORREGIDAS)
 # ---------------------------
 def limpiar_ventas(archivo):
-    df = pd.read_csv(archivo)
+    df = pd.read_csv(archivo, encoding='utf-8')  # Se lee directo desde BytesIO
     df.columns = df.columns.str.strip().str.lower()
     df["nombre"] = df["nombre"].str.strip().str.lower()
     for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
@@ -17,7 +17,7 @@ def limpiar_ventas(archivo):
     return df
 
 def limpiar_compras(archivo):
-    df = pd.read_csv(archivo)
+    df = pd.read_csv(archivo, encoding='utf-8')  # Se lee directo desde BytesIO
     df.columns = df.columns.str.strip().str.lower()
     df["producto"] = df["producto"].str.strip().str.lower()
     
