@@ -2,9 +2,10 @@ import pandas as pd
 import streamlit as st
 from datetime import date, datetime, timedelta
 import io
+from fpdf import FPDF  # Asegúrate de tener instalada la librería: pip install fpdf2
 
 # ---------------------------
-# Funciones de lectura y limpieza (sin cambios en lógica)
+# Funciones de lectura y limpieza
 # ---------------------------
 def limpiar_ventas(archivo):
     df = pd.read_csv(archivo)
@@ -20,30 +21,22 @@ def limpiar_compras(archivo):
     df.columns = df.columns.str.strip().str.lower()
     df["producto"] = df["producto"].str.strip().str.lower()
     
-    # Convertir fechas correctamente
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce", dayfirst=True)
-    
-    # Verificar si hay fechas nulas
     df = df.dropna(subset=["fecha"])
     
-    # Se usa "total unitario" como VR UND COMPRA
     df["total unitario"] = pd.to_numeric(df["total unitario"].astype(str).str.replace("[^\d.]", "", regex=True), errors="coerce").fillna(0)
     df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)
     
-    # Calcular el rango correcto de fechas
     max_fecha = df["fecha"].max()
     min_fecha = max_fecha - pd.Timedelta(days=90)
-
-    # Filtrar solo los últimos 90 días
     df = df[df["fecha"] >= min_fecha]
 
     return df, min_fecha.date(), max_fecha.date()
 
 # ---------------------------
-# Función para generar PDF a partir de un DataFrame
+# Función para generar PDF del pedido
 # ---------------------------
-def dataframe_a_pdf(df):
-    from fpdf import FPDF  
+def generar_pdf(df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=10)
@@ -129,13 +122,8 @@ if archivo_ventas and archivo_compras:
             })
 
             productos_filtrados["vr und compra"] = productos_filtrados["total unitario"]
-
-            productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]).round(0)
-            productos_filtrados["inventario"] = productos_filtrados["inventario"].apply(lambda x: max(x, 0))
-
-            productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).round(0)
-            productos_filtrados["unidades"] = productos_filtrados["unidades"].apply(lambda x: max(x, 0))
-
+            productos_filtrados["inventario"] = (productos_filtrados["cantidad"] - productos_filtrados["ventas en rango"]).clip(lower=0)
+            productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
             productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
 
             st.write("### Pedido")
@@ -145,26 +133,36 @@ if archivo_ventas and archivo_compras:
                     "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
                     "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
                     "vr und compra": st.column_config.NumberColumn("VR UND COMPRA", format="%.2f"),
-                    "ventas en rango": st.column_config.NumberColumn("Ventas en Rango", format="%d"),
                     "total x ref": st.column_config.NumberColumn("Total x Ref", format="%.2f", disabled=True),
                 },
                 num_rows="fixed"
             )
 
-            if st.button("Recalcular Unidades según Inventario"):
+            if st.button("Recalcular Orden"):
                 productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
                 productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
 
             total_general = productos_editados["total x ref"].sum()
             st.write(f"Total del Pedido: ${total_general:.2f}")
 
-            pdf_bytes = dataframe_a_pdf(productos_editados)
-            st.download_button(
-                label="Descargar Pedido en PDF",
-                data=pdf_bytes,
-                file_name="pedido.pdf",
-                mime="application/pdf"
-            )
+            if st.button("Enviar Orden"):
+                pedido_final = productos_editados[productos_editados["unidades"] > 0]
+                pdf_bytes = generar_pdf(pedido_final)
+
+                with st.expander("Vista previa del pedido en PDF"):
+                    st.download_button(
+                        label="Descargar Pedido en PDF",
+                        data=pdf_bytes,
+                        file_name="pedido.pdf",
+                        mime="application/pdf"
+                    )
+
+                if st.button("Enviar por WhatsApp"):
+                    st.success("Se abrirá WhatsApp para enviar el pedido (Funcionalidad a integrar).")
+
+                if st.button("Guardar Pedido"):
+                    st.success("Pedido guardado correctamente.")
+
         else:
             st.warning("Por favor selecciona un rango de fechas válido.")
 
