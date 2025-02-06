@@ -43,8 +43,9 @@ def dataframe_a_pdf(df):
             pdf.cell(col_width, row_height, str(item), border=1)
         pdf.ln(row_height)
     pdf_buffer = io.BytesIO()
-    pdf.output(pdf_buffer)
-    return pdf_buffer.getvalue()
+    pdf.output(pdf_buffer, 'F')
+    pdf_buffer.seek(0)
+    return pdf_buffer.read()
 
 st.set_page_config(layout="wide")
 st.title("Formato de Pedido")
@@ -95,15 +96,7 @@ if archivo_ventas and archivo_compras:
         
         st.write("### Pedido")
         productos_editados = st.data_editor(
-            productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "vr und compra", "total x ref"]],
-            column_config={
-                "inventario": st.column_config.NumberColumn("Inventario", min_value=0, step=1),
-                "unidades": st.column_config.NumberColumn("Unidades", min_value=0, step=1),
-                "vr und compra": st.column_config.NumberColumn("VR UND COMPRA", format="%.2f"),
-                "ventas en rango": st.column_config.NumberColumn("Ventas en Rango", format="%d"),
-                "total x ref": st.column_config.NumberColumn("Total x Ref", format="%.2f", disabled=True),
-            },
-            num_rows="fixed"
+            productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "vr und compra", "total x ref"]]
         )
         
         productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
