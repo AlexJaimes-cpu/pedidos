@@ -61,54 +61,31 @@ if archivo_ventas and archivo_compras:
         st.success(f"Archivos cargados correctamente. Rango de fechas en compras: {min_fecha} - {max_fecha}")
 
         punto_venta_opciones = {
-            "market samaria vendido": ("Samaria", "market samaria inventario"),
-            "market playa dormida vendido": ("Playa Dormida", "market playa dormida inventario"),
-            "market two towers vendido": ("Two Towers", "market two towers inventario"),
+            "market samaria vendido": "market samaria inventario",
+            "market playa dormida vendido": "market playa dormida inventario",
+            "market two towers vendido": "market two towers inventario",
         }
-        punto_venta_columna = st.selectbox(
-            "Seleccione el Punto de Venta:",
-            options=list(punto_venta_opciones.keys()),
-            format_func=lambda x: punto_venta_opciones[x][0]
-        )
-        inventario_columna = punto_venta_opciones[punto_venta_columna][1]
+        punto_venta_columna = st.selectbox("Seleccione el Punto de Venta:", options=list(punto_venta_opciones.keys()))
+        inventario_columna = punto_venta_opciones[punto_venta_columna]
 
-        rango_fechas = st.date_input("Selecciona el rango de fechas para las compras:",
-                                     value=(min_fecha, max_fecha),
-                                     min_value=min_fecha,
-                                     max_value=max_fecha)
+        rango_fechas = st.date_input("Selecciona el rango de fechas para las compras:", value=(min_fecha, max_fecha))
         fecha_inicio, fecha_fin = map(lambda d: datetime.combine(d, datetime.min.time()), rango_fechas)
         dias_rango = (fecha_fin - fecha_inicio).days + 1
-        st.number_input("Días a Calcular:", value=dias_rango, disabled=True)
         
         compras_filtradas = compras_limpias[(compras_limpias["fecha"] >= fecha_inicio) & (compras_limpias["fecha"] <= fecha_fin)]
         ventas_limpias["ventas en rango"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
         
-        productos_filtrados = pd.merge(
-            compras_filtradas, ventas_limpias,
-            left_on="producto", right_on="nombre", how="left"
-        ).fillna(0)
-        
+        productos_filtrados = pd.merge(compras_filtradas, ventas_limpias, left_on="producto", right_on="nombre", how="left").fillna(0)
         productos_filtrados["inventario"] = productos_filtrados[inventario_columna]
         productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
-        productos_filtrados["vr und compra"] = productos_filtrados["total unitario"]
-        productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["vr und compra"]
-        productos_filtrados = productos_filtrados.sort_values(by=["unidades"], ascending=False)
-        
+        productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
+
         st.write("### Pedido")
-        productos_editados = st.data_editor(
-            productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "vr und compra", "total x ref"]]
-        )
-        
-        productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["vr und compra"]
+        productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
         total_general = productos_editados["total x ref"].sum()
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
         pdf_bytes = dataframe_a_pdf(productos_editados)
-        st.download_button(
-            label="Descargar Pedido en PDF",
-            data=pdf_bytes,
-            file_name="pedido.pdf",
-            mime="application/pdf"
-        )
+        st.download_button("Descargar Pedido en PDF", data=pdf_bytes, file_name="pedido.pdf", mime="application/pdf")
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
