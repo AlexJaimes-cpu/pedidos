@@ -75,14 +75,14 @@ if archivo_ventas and archivo_compras:
         compras_filtradas = compras_limpias[(compras_limpias["fecha"] >= fecha_inicio) & (compras_limpias["fecha"] <= fecha_fin)]
         ventas_limpias["ventas en rango"] = ((ventas_limpias[punto_venta_columna] / 30) * dias_rango).round(0)
         
-      productos_filtrados = pd.merge(compras_filtradas, ventas_limpias, left_on="producto", right_on="nombre", how="left").fillna(0)
+           productos_filtrados = pd.merge(compras_filtradas, ventas_limpias, left_on="producto", right_on="nombre", how="left").fillna(0)
 
-productos_filtrados["inventario"] = pd.to_numeric(productos_filtrados[inventario_columna], errors="coerce").fillna(0)
-productos_filtrados["ventas en rango"] = pd.to_numeric(productos_filtrados["ventas en rango"], errors="coerce").fillna(0)
-productos_filtrados["total unitario"] = pd.to_numeric(productos_filtrados["total unitario"], errors="coerce").fillna(0)
+        productos_filtrados["inventario"] = pd.to_numeric(productos_filtrados[inventario_columna], errors="coerce").fillna(0)
+        productos_filtrados["ventas en rango"] = pd.to_numeric(productos_filtrados["ventas en rango"], errors="coerce").fillna(0)
+        productos_filtrados["total unitario"] = pd.to_numeric(productos_filtrados["total unitario"], errors="coerce").fillna(0)
 
-productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
-productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
+        productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
+        productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
 
         st.write("### Pedido")
         productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
