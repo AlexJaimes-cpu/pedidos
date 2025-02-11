@@ -84,16 +84,14 @@ if archivo_ventas and archivo_compras:
         productos_filtrados["ventas en rango"] = pd.to_numeric(productos_filtrados["ventas en rango"], errors="coerce").fillna(0)
         productos_filtrados["total unitario"] = pd.to_numeric(productos_filtrados["total unitario"], errors="coerce").fillna(0)
         
-        productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
-        productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
-        
         st.write("### Pedido")
         
         productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]], 
                                            key="editor")
         
-        productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
-        productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["total unitario"]
+        if st.button("Actualizar Cálculos"):
+            productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
+            productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["total unitario"]
         
         total_general = productos_editados["total x ref"].sum()
         st.write(f"Total del Pedido: ${total_general:.2f}")
