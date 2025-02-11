@@ -5,28 +5,6 @@ import io
 from fpdf import FPDF  
 import webbrowser
 
-# Función para exportar a PDF
-def dataframe_a_pdf(df):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=10)
-    col_width = pdf.w / (len(df.columns) + 1)
-    row_height = pdf.font_size * 1.5
-    
-    for col in df.columns:
-        pdf.cell(col_width, row_height, col, border=1)
-    pdf.ln(row_height)
-    
-    for _, row in df.iterrows():
-        for item in row:
-            pdf.cell(col_width, row_height, str(item), border=1)
-        pdf.ln(row_height)
-    
-    pdf_buffer = io.BytesIO()
-    pdf.output(pdf_buffer)
-    pdf_buffer.seek(0)
-    return pdf_buffer.getvalue()
-
 st.set_page_config(layout="wide")
 st.title("Formato de Pedido")
 
