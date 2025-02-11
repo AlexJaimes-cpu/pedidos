@@ -3,45 +3,25 @@ import streamlit as st
 from datetime import date, datetime, timedelta
 import io
 from fpdf import FPDF  
+import webbrowser
 
-# ---------------------------
-# Funciones de lectura y limpieza (sin cambios en lógica)
-# ---------------------------
-def limpiar_ventas(archivo):
-    df = pd.read_csv(archivo)
-    df.columns = df.columns.str.strip().str.lower()
-    df["nombre"] = df["nombre"].str.strip().str.lower()
-    for col in ["market samaria vendido", "market playa dormida vendido", "market two towers vendido"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-    return df
-
-def limpiar_compras(archivo):
-    df = pd.read_csv(archivo)
-    df.columns = df.columns.str.strip().str.lower()
-    df["producto"] = df["producto"].str.strip().str.lower()
-    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce", dayfirst=True)
-    df = df.dropna(subset=["fecha"])
-    df["total unitario"] = pd.to_numeric(df["total unitario"].astype(str).str.replace("[^\d.]", "", regex=True), errors="coerce").fillna(0)
-    df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0)
-    max_fecha = df["fecha"].max()
-    min_fecha = max_fecha - pd.Timedelta(days=90)
-    df = df[df["fecha"] >= min_fecha]
-    return df, min_fecha.date(), max_fecha.date()
-
+# Función para exportar a PDF
 def dataframe_a_pdf(df):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=10)
     col_width = pdf.w / (len(df.columns) + 1)
     row_height = pdf.font_size * 1.5
+    
     for col in df.columns:
         pdf.cell(col_width, row_height, col, border=1)
     pdf.ln(row_height)
+    
     for _, row in df.iterrows():
         for item in row:
             pdf.cell(col_width, row_height, str(item), border=1)
         pdf.ln(row_height)
+    
     pdf_buffer = io.BytesIO()
     pdf.output(pdf_buffer)
     pdf_buffer.seek(0)
@@ -84,11 +64,26 @@ if archivo_ventas and archivo_compras:
         productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
         
         st.write("### Pedido")
-        productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]])
+        
+        productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]], 
+                                           key="editor")
+        
+        productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
+        productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["total unitario"]
+        
         total_general = productos_editados["total x ref"].sum()
         st.write(f"Total del Pedido: ${total_general:.2f}")
-
-        pdf_bytes = dataframe_a_pdf(productos_editados)
-        st.download_button("Descargar Pedido en PDF", data=pdf_bytes, file_name="pedido.pdf", mime="application/pdf")
+        
+        if st.button("Exportar Pedido a PDF"):
+            pdf_bytes = dataframe_a_pdf(productos_editados)
+            st.download_button("Descargar Pedido en PDF", data=pdf_bytes, file_name="pedido.pdf", mime="application/pdf")
+            
+            opcion = st.radio("¿Qué desea hacer con el archivo?", ["Guardar", "Compartir por WhatsApp"], index=0)
+            if opcion == "Compartir por WhatsApp":
+                numero = st.text_input("Ingrese el número de WhatsApp (incluya el código de país):")
+                if st.button("Enviar por WhatsApp") and numero:
+                    enlace = f"https://api.whatsapp.com/send?phone={numero}&text=Aquí%20tienes%20el%20pedido%20en%20PDF."
+                    webbrowser.open(enlace)
+                    st.success("Enlace de WhatsApp abierto. Puedes enviar el archivo manualmente.")
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
