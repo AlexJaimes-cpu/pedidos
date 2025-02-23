@@ -88,10 +88,19 @@ if archivo_ventas and archivo_compras:
 
         productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]], key="editor", num_rows="dynamic")
 
+        # Recalcular unidades y total x ref al modificar inventario
+        productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
+        productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["total unitario"]
+
         total_general = productos_editados["total x ref"].sum()
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
-        if st.button("Exportar Pedido a Excel"):
+        try:
+            import openpyxl
+        except ImportError:
+            st.error("Error: El módulo 'openpyxl' no está instalado. Instálalo usando 'pip install openpyxl'.")
+        else:
+            if st.button("Exportar Pedido a Excel"):
             excel_buffer = BytesIO()
             productos_editados.to_excel(excel_buffer, index=False, engine='openpyxl')
             st.download_button("Descargar Pedido en Excel", data=excel_buffer.getvalue(), file_name="pedido.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
