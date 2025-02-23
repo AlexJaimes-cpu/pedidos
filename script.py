@@ -2,7 +2,8 @@ import pandas as pd
 import streamlit as st
 from datetime import datetime
 import io
-from fpdf import FPDF  
+from fpdf import FPDF
+from io import BytesIO
 
 # ---------------------------
 # Funciones de lectura y limpieza (sin cambios en lógica)
@@ -85,17 +86,19 @@ if archivo_ventas and archivo_compras:
         productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
         productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
 
-        productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]], key="editor", num_rows="dynamic")
+        productos_editados = st.experimental_data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]], key="editor", num_rows="dynamic")
 
-        if productos_editados is not None:
-            productos_editados["unidades"] = (productos_editados["ventas en rango"] - productos_editados["inventario"]).clip(lower=0)
-            productos_editados["total x ref"] = productos_editados["unidades"] * productos_editados["total unitario"]
-            total_general = productos_editados["total x ref"].sum()
-            st.write(f"Total del Pedido: ${total_general:.2f}")
+        total_general = productos_editados["total x ref"].sum()
+        st.write(f"Total del Pedido: ${total_general:.2f}")
 
-            if st.button("Exportar Pedido a PDF"):
-                pdf_bytes = dataframe_a_pdf(productos_editados)
-                st.download_button("Descargar Pedido en PDF", data=pdf_bytes, file_name="pedido.pdf", mime="application/pdf")
-    
+        if st.button("Exportar Pedido a Excel"):
+            excel_buffer = BytesIO()
+            productos_editados.to_excel(excel_buffer, index=False, engine='openpyxl')
+            st.download_button("Descargar Pedido en Excel", data=excel_buffer.getvalue(), file_name="pedido.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        if st.button("Exportar Pedido a PDF"):
+            pdf_bytes = dataframe_a_pdf(productos_editados)
+            st.download_button("Descargar Pedido en PDF", data=pdf_bytes, file_name="pedido.pdf", mime="application/pdf")
+
     except Exception as e:
         st.error(f"Error al procesar los archivos: {e}")
