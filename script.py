@@ -100,7 +100,7 @@ if archivo_ventas and archivo_compras:
         except ImportError:
             st.error("Error: El módulo 'openpyxl' no está instalado. Instálalo usando 'pip install openpyxl'.")
         else:
-            if st.button("Exportar Pedido a Excel"):
+    if st.button("Exportar Pedido a Excel"):
             excel_buffer = BytesIO()
             productos_editados.to_excel(excel_buffer, index=False, engine='openpyxl')
             st.download_button("Descargar Pedido en Excel", data=excel_buffer.getvalue(), file_name="pedido.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
