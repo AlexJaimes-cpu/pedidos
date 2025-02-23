@@ -86,7 +86,7 @@ if archivo_ventas and archivo_compras:
         productos_filtrados["unidades"] = (productos_filtrados["ventas en rango"] - productos_filtrados["inventario"]).clip(lower=0)
         productos_filtrados["total x ref"] = productos_filtrados["unidades"] * productos_filtrados["total unitario"]
 
-        productos_editados = st.experimental_data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]], key="editor", num_rows="dynamic")
+        productos_editados = st.data_editor(productos_filtrados[["producto", "ventas en rango", "inventario", "unidades", "total unitario", "total x ref"]], key="editor", num_rows="dynamic")
 
         total_general = productos_editados["total x ref"].sum()
         st.write(f"Total del Pedido: ${total_general:.2f}")
