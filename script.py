@@ -1,3 +1,9 @@
+import os
+try:
+    import openpyxl
+except ImportError:
+    os.system('pip install openpyxl')
+    import openpyxl
 import pandas as pd
 import streamlit as st
 from datetime import datetime
@@ -96,11 +102,14 @@ if archivo_ventas and archivo_compras:
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
         try:
-            import openpyxl
-        except ImportError:
-            st.error("Error: El módulo 'openpyxl' no está instalado. Instálalo usando 'pip install openpyxl'.")
-        else:
-            if st.button("Exportar Pedido a Excel"):
+    import openpyxl
+except ImportError:
+    st.error("Error: El módulo 'openpyxl' no está instalado. Instálalo usando 'pip install openpyxl'.")
+else:
+    if st.button("Exportar Pedido a Excel"):
+        excel_buffer = BytesIO()
+        productos_editados.to_excel(excel_buffer, index=False, engine='openpyxl')
+        st.download_button("Descargar Pedido en Excel", data=excel_buffer.getvalue(), file_name="pedido.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             excel_buffer = BytesIO()
             productos_editados.to_excel(excel_buffer, index=False, engine='openpyxl')
             st.download_button("Descargar Pedido en Excel", data=excel_buffer.getvalue(), file_name="pedido.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
