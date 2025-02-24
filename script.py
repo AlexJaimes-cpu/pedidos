@@ -97,8 +97,7 @@ if archivo_ventas and archivo_compras:
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
         import openpyxl
-except ImportError:
-    st.error("Error: El módulo 'openpyxl' no está instalado. Instálalo usando 'pip install openpyxl'.")
+
 else:
     if st.button("Exportar Pedido a Excel"):
         excel_buffer = BytesIO()
