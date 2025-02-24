@@ -98,7 +98,7 @@ if archivo_ventas and archivo_compras:
 
         import openpyxl
 
-else:
+
     if st.button("Exportar Pedido a Excel"):
         excel_buffer = BytesIO()
         productos_editados.to_excel(excel_buffer, index=False, engine='openpyxl')
