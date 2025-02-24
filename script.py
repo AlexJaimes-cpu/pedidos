@@ -1,6 +1,6 @@
 import os
 try:
-    import openpyxl
+        import openpyxl
 except ImportError:
     os.system('pip install openpyxl')
     import openpyxl
@@ -102,7 +102,7 @@ if archivo_ventas and archivo_compras:
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
         try:
-    import openpyxl
+        import openpyxl
 except ImportError:
     st.error("Error: El módulo 'openpyxl' no está instalado. Instálalo usando 'pip install openpyxl'.")
 else:
