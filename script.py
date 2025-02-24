@@ -96,7 +96,6 @@ if archivo_ventas and archivo_compras:
         total_general = productos_editados["total x ref"].sum()
         st.write(f"Total del Pedido: ${total_general:.2f}")
 
-        try:
         import openpyxl
 except ImportError:
     st.error("Error: El módulo 'openpyxl' no está instalado. Instálalo usando 'pip install openpyxl'.")
