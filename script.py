@@ -1,9 +1,4 @@
-import os
-try:
-    import openpyxl
-except ImportError:
-    os.system('pip install openpyxl')
-    import openpyxl
+import openpyxl
 import pandas as pd
 import streamlit as st
 from datetime import datetime
