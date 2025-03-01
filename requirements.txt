@@ -2,3 +2,11 @@ fpdf
 pandas
 streamlit
 openpyxl
+numpy
+matplotlib
+seaborn
+plotly
+scikit-learn
+statsmodels
+prophet
+xgboost
