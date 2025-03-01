@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from prophet import Prophet
+from io import BytesIO
 
 # Configuración de la aplicación
 st.set_page_config(page_title="Reporte Gerencial", layout="wide")
@@ -45,18 +46,36 @@ if ventas_df is not None:
     ventas_df[['Costo', 'Ganancia']] = ventas_df[['Ganancia', 'Costo']]
     for col in ['Total Neto', 'Devoluciones', 'Total ajustado', 'Costo', 'Comision', 'Ganancia']:
         ventas_df[col] = ventas_df[col].apply(lambda x: f"${x:,.0f}")
-    
+
 # Mostrar Datos de Ventas
 if ventas_df is not None:
     st.subheader("📋 Datos de Ventas")
     st.write("Columnas detectadas:", list(ventas_df.columns))
     st.write(ventas_df.head())
+    
+    # Botón para descargar archivo de ventas limpio
+    ventas_csv = ventas_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="⬇️ Descargar Ventas Limpias",
+        data=ventas_csv,
+        file_name="ventas_limpias.csv",
+        mime="text/csv"
+    )
 
 # Mostrar Datos de Compras
 if compras_df is not None:
     st.subheader("📋 Datos de Compras")
     st.write("Columnas detectadas:", list(compras_df.columns))
     st.write(compras_df.head())
+    
+    # Botón para descargar archivo de compras limpio
+    compras_csv = compras_df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="⬇️ Descargar Compras Limpias",
+        data=compras_csv,
+        file_name="compras_limpias.csv",
+        mime="text/csv"
+    )
 
 # Predicción de Ventas con Prophet
 if ventas_df is not None:
