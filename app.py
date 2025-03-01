@@ -53,24 +53,29 @@ if ventas_df is not None:
 # Tablero de Ventas
 if ventas_df is not None:
     st.subheader("📊 Análisis de Ventas")
-    filtro_punto_venta = st.selectbox("Filtrar por Punto de Venta", ["Todos", "Samaria", "Playa Dormida", "Two Towers"])
-    filtro_proveedor = st.selectbox("Filtrar por Proveedor", ["Todos"] + list(compras_df["Proveedor"].unique()) if compras_df is not None else ["Todos"])
+    filtro_punto_venta = st.multiselect("Filtrar por Punto de Venta", ["Samaria", "Playa Dormida", "Two Towers"], default=["Samaria", "Playa Dormida", "Two Towers"])
+    filtro_producto = st.multiselect("Filtrar por Producto", ventas_df["Producto"].unique())
     
     ventas_filtradas = ventas_df.copy()
-    if filtro_punto_venta != "Todos":
-        ventas_filtradas = ventas_filtradas[["Producto", filtro_punto_venta, "Total ajustado"]]
-    if filtro_proveedor != "Todos" and compras_df is not None:
-        ventas_filtradas = ventas_filtradas[ventas_filtradas["Producto"].isin(compras_df[compras_df["Proveedor"] == filtro_proveedor]["Producto"])]
+    if filtro_punto_venta:
+        ventas_filtradas = ventas_filtradas[["Producto"] + filtro_punto_venta + ["Total ajustado"]]
+    if filtro_producto:
+        ventas_filtradas = ventas_filtradas[ventas_filtradas["Producto"].isin(filtro_producto)]
     
-    total_ventas_global = ventas_df["Total ajustado"].sum()
-    st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
-    
-    total_ventas_punto = ventas_df[["Samaria", "Playa Dormida", "Two Towers"]].sum()
-    st.bar_chart(total_ventas_punto, use_container_width=True)
-    
+    # Mostrar Tablas y Gráficos
+    st.write("### Top 10 Productos Más Vendidos en Pesos")
     top_10_productos = ventas_df.groupby("Producto")["Total ajustado"].sum().nlargest(10).reset_index()
     st.dataframe(top_10_productos)
     
+    st.write("### Top 20 Productos Más Vendidos en Unidades")
+    top_20_productos = ventas_df.groupby("Producto")[["Samaria", "Playa Dormida", "Two Towers"]].sum().sum(axis=1).nlargest(20).reset_index()
+    st.dataframe(top_20_productos)
+    
+    # Gráfico de Ventas
+    fig_top_ventas = px.bar(top_20_productos, x="Producto", y=0, title="Top 20 Productos en Unidades")
+    st.plotly_chart(fig_top_ventas)
+    
+    # Predicción de Ventas
     st.subheader("📈 Pronóstico de Ventas por Producto")
     producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
     datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
