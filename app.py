@@ -36,18 +36,18 @@ else:
 # Mostrar Datos
 if ventas_df is not None:
     st.subheader("📋 Datos de Ventas")
+    st.write("Columnas detectadas:", list(ventas_df.columns))  # Mostrar columnas disponibles
     st.write(ventas_df.head())
-
+    
 if compras_df is not None:
     st.subheader("📋 Datos de Compras")
     st.write(compras_df.head())
 
 # Análisis de Ventas
 if ventas_df is not None:
-    st.subheader("📊 Análisis de Ventas")
-    top_ventas = ventas_df.groupby("producto")["total_ventas"].sum().nlargest(10).reset_index()
-    fig = px.bar(top_ventas, x="producto", y="total_ventas", title="Top 10 Productos Más Vendidos", color="total_ventas")
-    st.plotly_chart(fig)
+    st.subheader("📋 Datos de Ventas")
+    st.write("Columnas detectadas:", list(ventas_df.columns))  # Mostrar columnas disponibles
+    st.write(ventas_df.head())
 
 # Predicción de Ventas con Prophet
 if ventas_df is not None:
