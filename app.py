@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from prophet import Prophet
+from sklearn.linear_model import LinearRegression
+from statsmodels.tsa.arima.model import ARIMA
+import xgboost as xgb
 
 # Configuración de la aplicación
 st.set_page_config(page_title="Reporte Gerencial", layout="wide")
@@ -33,7 +36,7 @@ if compras_files:
 else:
     compras_df = None
 
-# Limpieza y Procesamiento de Datos de Ventas
+# Limpieza y Transformación de Datos
 if ventas_df is not None:
     ventas_df.rename(columns={
         'Nombre': 'Producto',
@@ -41,9 +44,7 @@ if ventas_df is not None:
         'market playa dormida Vendido': 'Playa Dormida',
         'market two towers Vendido': 'Two Towers'
     }, inplace=True)
-    numeric_cols = [
-        'Samaria', 'Playa Dormida', 'Two Towers', 'Total ajustado', 'Costo', 'Ganancia'
-    ]
+    numeric_cols = ['Samaria', 'Playa Dormida', 'Two Towers', 'Total ajustado', 'Costo', 'Ganancia']
     for col in numeric_cols:
         ventas_df[col] = ventas_df[col].astype(str).str.replace(r'[^\d-]', '', regex=True).astype(float)
     ventas_df[['Costo', 'Ganancia']] = ventas_df[['Ganancia', 'Costo']]
@@ -55,27 +56,21 @@ if ventas_df is not None:
     filtro_punto_venta = st.selectbox("Filtrar por Punto de Venta", ["Todos", "Samaria", "Playa Dormida", "Two Towers"])
     filtro_proveedor = st.selectbox("Filtrar por Proveedor", ["Todos"] + list(compras_df["Proveedor"].unique()) if compras_df is not None else ["Todos"])
     
-    # Filtrar datos según selección
     ventas_filtradas = ventas_df.copy()
     if filtro_punto_venta != "Todos":
         ventas_filtradas = ventas_filtradas[["Producto", filtro_punto_venta, "Total ajustado"]]
     if filtro_proveedor != "Todos" and compras_df is not None:
         ventas_filtradas = ventas_filtradas[ventas_filtradas["Producto"].isin(compras_df[compras_df["Proveedor"] == filtro_proveedor]["Producto"])]
     
-    # Total de Ventas Globales
     total_ventas_global = ventas_df["Total ajustado"].sum()
     st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
     
-    # Total de Ventas por Punto de Venta
     total_ventas_punto = ventas_df[["Samaria", "Playa Dormida", "Two Towers"]].sum()
     st.bar_chart(total_ventas_punto, use_container_width=True)
     
-    # Gráfico de Top 10 Productos más vendidos
     top_10_productos = ventas_df.groupby("Producto")["Total ajustado"].sum().nlargest(10).reset_index()
-    fig_top_10 = px.bar(top_10_productos, x="Producto", y="Total ajustado", title="Top 10 Productos Más Vendidos")
-    st.plotly_chart(fig_top_10)
+    st.dataframe(top_10_productos)
     
-    # Predicción con Prophet
     st.subheader("📈 Pronóstico de Ventas por Producto")
     producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
     datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
