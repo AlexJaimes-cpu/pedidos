@@ -35,36 +35,44 @@ else:
 
 # Limpieza y Procesamiento de Datos de Ventas
 if ventas_df is not None:
-    ventas_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
+    ventas_df.rename(columns={
+        'Nombre': 'Producto',
+        'market samaria Vendido': 'Samaria',
+        'market playa dormida Vendido': 'Playa Dormida',
+        'market two towers Vendido': 'Two Towers'
+    }, inplace=True)
     numeric_cols = [
-        'market samaria Vendido', 'market playa dormida Vendido', 'market two towers Vendido',
-        'principal Vendido', 'donaciones Vendido', 'Total vendido', 'Total Neto', 'Costo', 'Ganancia'
+        'Samaria', 'Playa Dormida', 'Two Towers', 'Total ajustado', 'Costo', 'Ganancia'
     ]
     for col in numeric_cols:
         ventas_df[col] = ventas_df[col].astype(str).str.replace(r'[^\d-]', '', regex=True).astype(float)
     ventas_df[['Costo', 'Ganancia']] = ventas_df[['Ganancia', 'Costo']]
-    ventas_df['Ventas Promedio Diario'] = ventas_df['Total vendido'] / 90  # Prorratear ventas en 90 días
+    ventas_df['Ventas Promedio Diario'] = ventas_df['Total ajustado'] / 90  # Prorratear ventas en 90 días
 
 # Tablero de Ventas
 if ventas_df is not None:
     st.subheader("📊 Análisis de Ventas")
-    filtro_punto_venta = st.selectbox("Filtrar por Punto de Venta", ["Todos"] + list(ventas_df.columns[2:6]))
+    filtro_punto_venta = st.selectbox("Filtrar por Punto de Venta", ["Todos", "Samaria", "Playa Dormida", "Two Towers"])
     filtro_proveedor = st.selectbox("Filtrar por Proveedor", ["Todos"] + list(compras_df["Proveedor"].unique()) if compras_df is not None else ["Todos"])
     
     # Filtrar datos según selección
     ventas_filtradas = ventas_df.copy()
     if filtro_punto_venta != "Todos":
-        ventas_filtradas = ventas_filtradas[["Producto", filtro_punto_venta, "Total vendido"]]
+        ventas_filtradas = ventas_filtradas[["Producto", filtro_punto_venta, "Total ajustado"]]
     if filtro_proveedor != "Todos" and compras_df is not None:
         ventas_filtradas = ventas_filtradas[ventas_filtradas["Producto"].isin(compras_df[compras_df["Proveedor"] == filtro_proveedor]["Producto"])]
     
-    # Total de Ventas por Año
-    total_ventas_anual = ventas_df["Total vendido"].sum()
-    st.metric(label="Total de Ventas del Año", value=f"${total_ventas_anual:,.0f}")
+    # Total de Ventas Globales
+    total_ventas_global = ventas_df["Total ajustado"].sum()
+    st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
+    
+    # Total de Ventas por Punto de Venta
+    total_ventas_punto = ventas_df[["Samaria", "Playa Dormida", "Two Towers"]].sum()
+    st.bar_chart(total_ventas_punto, use_container_width=True)
     
     # Gráfico de Top 10 Productos más vendidos
-    top_10_productos = ventas_df.groupby("Producto")["Total vendido"].sum().nlargest(10).reset_index()
-    fig_top_10 = px.bar(top_10_productos, x="Producto", y="Total vendido", title="Top 10 Productos Más Vendidos")
+    top_10_productos = ventas_df.groupby("Producto")["Total ajustado"].sum().nlargest(10).reset_index()
+    fig_top_10 = px.bar(top_10_productos, x="Producto", y="Total ajustado", title="Top 10 Productos Más Vendidos")
     st.plotly_chart(fig_top_10)
     
     # Predicción con Prophet
