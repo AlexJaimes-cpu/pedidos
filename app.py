@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from prophet import Prophet
-from io import BytesIO
 
 # Configuración de la aplicación
 st.set_page_config(page_title="Reporte Gerencial", layout="wide")
@@ -12,83 +11,75 @@ st.title("📊 Reporte Gerencial Interactivo")
 # Cargar Datos
 st.sidebar.header("📂 Carga de Datos")
 ventas_files = st.sidebar.file_uploader("Subir Archivos de Ventas (CSV)", type=["csv"], accept_multiple_files=True)
-compras_file = st.sidebar.file_uploader("Subir Archivo de Compras (CSV)", type=["csv"])
+compras_files = st.sidebar.file_uploader("Subir Archivos de Compras (CSV)", type=["csv"], accept_multiple_files=True)
 
 ventas_df_list = []
 if ventas_files:
     for ventas_file in ventas_files:
         df_temp = pd.read_csv(ventas_file)
-        df_temp['Fuente'] = ventas_file.name  # Identificar la fuente del archivo
+        df_temp['Trimestre'] = ventas_file.name.split(' ')[-1].split('.')[0]  # Detectar el trimestre desde el nombre del archivo
         ventas_df_list.append(df_temp)
     ventas_df = pd.concat(ventas_df_list, ignore_index=True)
-    st.sidebar.success("✅ Ventas cargadas correctamente.")
 else:
     ventas_df = None
 
-if compras_file is not None:
-    compras_df = pd.read_csv(compras_file)
-    st.sidebar.success("✅ Compras cargadas correctamente.")
+compras_df_list = []
+if compras_files:
+    for compras_file in compras_files:
+        df_temp = pd.read_csv(compras_file)
+        df_temp['Proveedor'] = compras_file.name.split('.')[0]  # Detectar proveedor desde el nombre del archivo
+        compras_df_list.append(df_temp)
+    compras_df = pd.concat(compras_df_list, ignore_index=True)
 else:
     compras_df = None
 
-# Limpieza de Datos
+# Limpieza y Procesamiento de Datos de Ventas
 if ventas_df is not None:
     ventas_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
     numeric_cols = [
         'market samaria Vendido', 'market playa dormida Vendido', 'market two towers Vendido',
-        'principal Vendido', 'donaciones Vendido', 'Total vendido', 'Total inventario',
-        'Total en lista', 'Descuentos', 'Total Neto', 'Devoluciones', 'Total ajustado',
-        'Costo', 'Comision', 'Ganancia'
+        'principal Vendido', 'donaciones Vendido', 'Total vendido', 'Total Neto', 'Costo', 'Ganancia'
     ]
     for col in numeric_cols:
-        ventas_df[col] = ventas_df[col].astype(str).str.replace(r'[^\d-]', '', regex=True)
-        ventas_df[col] = pd.to_numeric(ventas_df[col], errors='coerce').fillna(0).astype(int)
+        ventas_df[col] = ventas_df[col].astype(str).str.replace(r'[^\d-]', '', regex=True).astype(float)
     ventas_df[['Costo', 'Ganancia']] = ventas_df[['Ganancia', 'Costo']]
-    for col in ['Total Neto', 'Devoluciones', 'Total ajustado', 'Costo', 'Comision', 'Ganancia']:
-        ventas_df[col] = ventas_df[col].apply(lambda x: f"${x:,.0f}")
+    ventas_df['Ventas Promedio Diario'] = ventas_df['Total vendido'] / 90  # Prorratear ventas en 90 días
 
-# Mostrar Datos de Ventas
+# Tablero de Ventas
 if ventas_df is not None:
-    st.subheader("📋 Datos de Ventas")
-    st.write("Columnas detectadas:", list(ventas_df.columns))
-    st.write(ventas_df.head())
+    st.subheader("📊 Análisis de Ventas")
+    filtro_punto_venta = st.selectbox("Filtrar por Punto de Venta", ["Todos"] + list(ventas_df.columns[2:6]))
+    filtro_proveedor = st.selectbox("Filtrar por Proveedor", ["Todos"] + list(compras_df["Proveedor"].unique()) if compras_df is not None else ["Todos"])
     
-    # Botón para descargar archivo de ventas limpio
-    ventas_csv = ventas_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⬇️ Descargar Ventas Limpias",
-        data=ventas_csv,
-        file_name="ventas_limpias.csv",
-        mime="text/csv"
-    )
-
-# Mostrar Datos de Compras
-if compras_df is not None:
-    st.subheader("📋 Datos de Compras")
-    st.write("Columnas detectadas:", list(compras_df.columns))
-    st.write(compras_df.head())
+    # Filtrar datos según selección
+    ventas_filtradas = ventas_df.copy()
+    if filtro_punto_venta != "Todos":
+        ventas_filtradas = ventas_filtradas[["Producto", filtro_punto_venta, "Total vendido"]]
+    if filtro_proveedor != "Todos" and compras_df is not None:
+        ventas_filtradas = ventas_filtradas[ventas_filtradas["Producto"].isin(compras_df[compras_df["Proveedor"] == filtro_proveedor]["Producto"])]
     
-    # Botón para descargar archivo de compras limpio
-    compras_csv = compras_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⬇️ Descargar Compras Limpias",
-        data=compras_csv,
-        file_name="compras_limpias.csv",
-        mime="text/csv"
-    )
-
-# Predicción de Ventas con Prophet
-if ventas_df is not None:
-    st.subheader("📈 Predicción de Ventas")
-    ventas_agg = ventas_df.groupby("Producto")["Total Neto"].sum().reset_index()
-    ventas_agg.rename(columns={"Total Neto": "y", "Producto": "ds"}, inplace=True)
+    # Total de Ventas por Año
+    total_ventas_anual = ventas_df["Total vendido"].sum()
+    st.metric(label="Total de Ventas del Año", value=f"${total_ventas_anual:,.0f}")
     
-    model = Prophet()
-    model.fit(ventas_agg)
-    future = model.make_future_dataframe(periods=30)
-    forecast = model.predict(future)
+    # Gráfico de Top 10 Productos más vendidos
+    top_10_productos = ventas_df.groupby("Producto")["Total vendido"].sum().nlargest(10).reset_index()
+    fig_top_10 = px.bar(top_10_productos, x="Producto", y="Total vendido", title="Top 10 Productos Más Vendidos")
+    st.plotly_chart(fig_top_10)
     
-    fig_forecast = px.line(forecast, x="ds", y="yhat", title="Predicción de Ventas (30 días)")
+    # Predicción con Prophet
+    st.subheader("📈 Pronóstico de Ventas por Producto")
+    producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
+    datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
+    df_pred = pd.DataFrame({
+        "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
+        "y": [datos_producto["Ventas Promedio Diario"].sum()] * 7
+    })
+    modelo = Prophet()
+    modelo.fit(df_pred)
+    futuro = modelo.make_future_dataframe(periods=7)
+    pronostico = modelo.predict(futuro)
+    fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
     st.plotly_chart(fig_forecast)
 
 st.sidebar.info("Desarrollado con 💡 por IA para la optimización de negocios.")
