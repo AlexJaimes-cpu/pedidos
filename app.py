@@ -72,4 +72,8 @@ if ventas_df is not None:
     fig_forecast = px.line(forecast, x="ds", y="yhat", title="Predicción de Ventas (30 días)")
     st.plotly_chart(fig_forecast)
 
+ventas_df.to_csv("ventas_limpias.csv", index=False)
+compras_df.to_csv("compras_limpias.csv", index=False)
+
+
 st.sidebar.info("Desarrollado con 💡 por IA para la optimización de negocios.")
