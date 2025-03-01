@@ -38,6 +38,7 @@ else:
 
 # Función para calcular ventas prorrateadas
 def calcular_ventas_prorrateadas(df, dias):
+    df['Total ajustado'] = pd.to_numeric(df['Total ajustado'], errors='coerce').fillna(0)  # Asegurar que sea numérico y reemplazar NaN por 0
     df['Ventas Prorrateadas'] = df['Total ajustado'] / 90 * dias
     return df
 
