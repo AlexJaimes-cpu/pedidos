@@ -36,47 +36,46 @@ if compras_files:
 else:
     compras_df = None
 
-# Función para calcular ventas prorrateadas
-def calcular_ventas_prorrateadas(df, dias):
-    df['Total ajustado'] = pd.to_numeric(df['Total ajustado'], errors='coerce').fillna(0)  # Asegurar que sea numérico y reemplazar NaN por 0
-    df['Ventas Prorrateadas'] = df['Total ajustado'] / 90 * dias
-    return df
+# Función para calcular trimestre
+def asignar_trimestre(trimestre):
+    trimestre_dict = {"Q1": "Enero-Marzo", "Q2": "Abril-Junio", "Q3": "Julio-Septiembre", "Q4": "Octubre-Diciembre"}
+    return trimestre_dict.get(trimestre, "Desconocido")
 
-# Selección de rango de fechas
+if ventas_df is not None:
+    ventas_df["Periodo"] = ventas_df["Trimestre"].apply(asignar_trimestre)
+
+# Selección de Filtros
 st.sidebar.subheader("📅 Selección de Rango de Fechas")
 dias_filtro = st.sidebar.slider("Número de días a analizar", min_value=7, max_value=90, value=30)
 
-# Tablero de Ventas
+productos_seleccionados = st.sidebar.multiselect("Seleccionar Productos", ventas_df["Producto"].unique() if ventas_df is not None else [])
+puntos_venta_seleccionados = st.sidebar.multiselect("Seleccionar Puntos de Venta", ["Samaria", "Playa Dormida", "Two Towers"], default=["Samaria", "Playa Dormida", "Two Towers"])
+
+# Aplicar Filtros
 if ventas_df is not None:
-    ventas_df = calcular_ventas_prorrateadas(ventas_df, dias_filtro)
+    if productos_seleccionados:
+        ventas_df = ventas_df[ventas_df["Producto"].isin(productos_seleccionados)]
     
-    st.subheader("📊 Totales de Ventas")
+    # Ajustar ventas prorrateadas
+    ventas_df['Total ajustado'] = pd.to_numeric(ventas_df['Total ajustado'], errors='coerce').fillna(0)
+    ventas_df['Ventas Prorrateadas'] = ventas_df['Total ajustado'] / 90 * dias_filtro
+
+    # Mostrar KPI de Ventas Totales
     total_ventas_global = ventas_df["Ventas Prorrateadas"].sum()
     st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
-    
-    ventas_punto = ventas_df.groupby("Trimestre")[["Samaria", "Playa Dormida", "Two Towers"]].sum()
-    st.dataframe(ventas_punto)
-    
+
+    # Tablas por Punto de Venta
+    for punto in puntos_venta_seleccionados:
+        st.subheader(f"📊 Ventas en {punto}")
+        tabla_punto = ventas_df[["Producto", punto, "Ventas Prorrateadas"]].groupby("Producto").sum().reset_index()
+        st.dataframe(tabla_punto)
+
     # Comparación de Ventas vs Compras
     st.subheader("📊 Comparación de Ventas vs Compras")
     if compras_df is not None:
         ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
         ventas_compras["Precio Compra por Unidad"] = ventas_compras["Total unitario"]
         st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario", "Precio Compra por Unidad"]])
-    
-    # Indicadores Financieros
-    st.subheader("📊 Indicadores Financieros")
-    margen_bruto = (ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100
-    st.metric(label="Margen Bruto (%)", value=f"{margen_bruto:.2f}%")
-    
-    # Inventario y Abastecimiento
-    st.subheader("📦 Inventario y Abastecimiento")
-    inventario_df = pd.DataFrame({
-        "Rotación de Inventarios": [ventas_df["Ventas Prorrateadas"].sum() / ventas_df["Total inventario"].sum()],
-        "Días de Inventario": [ventas_df["Total inventario"].sum() / ventas_df["Ventas Prorrateadas"].sum() * 365],
-        "Costo Promedio por Unidad": [ventas_df["Costo"].sum() / ventas_df["Ventas Prorrateadas"].sum()],
-    })
-    st.dataframe(inventario_df)
     
     # Predicción de Ventas
     st.subheader("📈 Predicción de Ventas con Prophet")
@@ -92,16 +91,5 @@ if ventas_df is not None:
     pronostico = modelo.predict(futuro)
     fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
     st.plotly_chart(fig_forecast)
-
-    # Selector de Modelos
-    st.subheader("🔄 Comparación de Modelos de Predicción")
-    modelo_seleccionado = st.selectbox("Seleccione un Modelo", ["Prophet", "ARIMA", "XGBoost", "Regresión Lineal"])
-    modelo_descripcion = {
-        "Prophet": "Modelo de predicción de series temporales que identifica tendencias y estacionalidad.",
-        "ARIMA": "Modelo basado en promedios móviles e integración para predecir series temporales.",
-        "XGBoost": "Modelo de aprendizaje automático basado en boosting para predicción precisa.",
-        "Regresión Lineal": "Modelo estadístico simple para predecir valores basados en tendencias lineales."
-    }
-    st.write(modelo_descripcion[modelo_seleccionado])
 
 st.sidebar.info("Desarrollado con 💡 por IA para la optimización de negocios.")
