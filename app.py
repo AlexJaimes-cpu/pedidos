@@ -67,10 +67,7 @@ if ventas_df is not None:
     st.subheader("📊 Comparación de Ventas vs Compras")
     if compras_df is not None:
         compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
-        ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
-        ventas_compras["Precio Compra por Unidad"] = ventas_compras["Total unitario"]
-        st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario", "Precio Compra por Unidad"]])
-    
+     
     # Indicadores Financieros
     st.subheader("📊 Indicadores Financieros")
     margen_bruto = (ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100
