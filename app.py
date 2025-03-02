@@ -36,7 +36,15 @@ if compras_files:
 else:
     compras_df = None
 
-# Ajuste de fechas y prorrateo de ventas
+# Ajuste de nombres de columnas
+if ventas_df is not None:
+    ventas_df.rename(columns={
+        'Market Samaria Vendido': 'Samaria',
+        'Market Playa Dormida Vendido': 'Playa Dormida',
+        'Market Two Towers Vendido': 'Two Towers'
+    }, inplace=True)
+
+# Función para calcular ventas prorrateadas
 def calcular_ventas_prorrateadas(df, dias):
     df['Total ajustado'] = pd.to_numeric(df['Total ajustado'], errors='coerce').fillna(0)
     df['Ventas Prorrateadas'] = df['Total ajustado'] / 90 * dias
@@ -46,13 +54,13 @@ def calcular_ventas_prorrateadas(df, dias):
 st.sidebar.subheader("📅 Selección de Filtros")
 dias_filtro = st.sidebar.slider("Número de días a analizar", min_value=7, max_value=90, value=30)
 punto_venta_seleccionado = st.sidebar.multiselect("Seleccionar Puntos de Venta", ["Samaria", "Playa Dormida", "Two Towers"], default=["Samaria", "Playa Dormida", "Two Towers"])
-productos_seleccionados = st.sidebar.multiselect("Seleccionar Productos", ventas_df["Nombre"].unique() if ventas_df is not None else [])
+productos_seleccionados = st.sidebar.multiselect("Seleccionar Productos", ventas_df["Producto"].unique() if ventas_df is not None else [])
 
 # Aplicar Filtros
 if ventas_df is not None:
     ventas_df = calcular_ventas_prorrateadas(ventas_df, dias_filtro)
     if productos_seleccionados:
-        ventas_df = ventas_df[ventas_df["Nombre"].isin(productos_seleccionados)]
+        ventas_df = ventas_df[ventas_df["Producto"].isin(productos_seleccionados)]
 
     # KPI Totales
     st.subheader("📊 Totales de Ventas")
@@ -62,16 +70,17 @@ if ventas_df is not None:
     # Tablas por Punto de Venta
     for punto in punto_venta_seleccionado:
         st.subheader(f"📊 Ventas en {punto}")
-        tabla_punto = ventas_df[["Nombre", punto, "Ventas Prorrateadas"]].groupby("Nombre").sum().reset_index()
+        tabla_punto = ventas_df[["Producto", punto, "Ventas Prorrateadas"]].groupby("Producto").sum().reset_index()
         st.dataframe(tabla_punto)
     
     # Comparación de Ventas vs Compras
     st.subheader("📊 Comparación de Ventas vs Compras")
     if compras_df is not None:
-        ventas_compras = ventas_df.merge(compras_df, on="Nombre", how="left")
+        compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
+        ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
         ventas_compras["Compras No Disponibles"] = ventas_compras["Total unitario"].isna()
         ventas_compras.fillna("Compras No Disponibles", inplace=True)
-        st.dataframe(ventas_compras[["Nombre", "Ventas Prorrateadas", "Total unitario"]])
+        st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario"]])
     
     # Indicadores Financieros
     st.subheader("📊 Indicadores Financieros")
@@ -84,8 +93,8 @@ if ventas_df is not None:
     
     # Predicción de Ventas
     st.subheader("📈 Predicción de Ventas con Prophet")
-    producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Nombre"].unique())
-    datos_producto = ventas_df[ventas_df["Nombre"] == producto_seleccionado]
+    producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
+    datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
     df_pred = pd.DataFrame({
         "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
         "y": [datos_producto["Ventas Prorrateadas"].sum()] * 7
