@@ -1,78 +1,96 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from prophet import Prophet
+import re
 
-# Configuración de la aplicación
-st.set_page_config(page_title="📊 Reporte Gerencial", layout="wide")
-st.title("📊 Reporte Gerencial Interactivo")
-
-# Cargar Datos
-st.sidebar.header("📂 Carga de Datos")
-ventas_file = st.sidebar.file_uploader("Subir Archivo de Ventas (CSV)", type=["csv"], accept_multiple_files=False)
-compras_file = st.sidebar.file_uploader("Subir Archivo de Compras (CSV)", type=["csv"], accept_multiple_files=False)
-
-if ventas_file:
-    ventas_df = pd.read_csv(ventas_file)
-    # Renombrar columnas
-    ventas_df.rename(columns={
-        'market samaria Vendido': 'Samaria',
-        'market playa dormida Vendido': 'Playa Dormida',
-        'market two towers Vendido': 'Two Towers',
-        'Nombre': 'Producto'
-    }, inplace=True)
+def cargar_datos():
+    """Función para cargar múltiples archivos de ventas y compras."""
+    ventas_files = st.file_uploader("Subir archivos de Ventas", type=["csv"], accept_multiple_files=True)
+    compras_files = st.file_uploader("Subir archivos de Compras", type=["csv"], accept_multiple_files=True)
     
-    # Verificar datos problemáticos antes de conversión
-    st.write("Valores no convertibles en Total ajustado:", ventas_df['Total ajustado'].unique())
-    st.write("Valores no convertibles en Costo:", ventas_df['Costo'].unique())
-    st.write("Valores no convertibles en Ganancia:", ventas_df['Ganancia'].unique())
+    df_ventas_list = []
+    df_compras_list = []
     
-    # Convertir columnas financieras a numéricas
-    for col in ['Total ajustado', 'Costo', 'Ganancia']:
-        ventas_df[col] = pd.to_numeric(ventas_df[col].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').fillna(0)
+    for file in ventas_files:
+        df = pd.read_csv(file, encoding="latin1")
+        df["Periodo"] = extraer_periodo(file.name)  # Asignar periodo basado en nombre de archivo
+        df_ventas_list.append(df)
     
-    st.success("✅ Archivo de ventas cargado correctamente")
-else:
-    ventas_df = None
+    for file in compras_files:
+        df = pd.read_csv(file, encoding="latin1")
+        df_compras_list.append(df)
+    
+    df_ventas = pd.concat(df_ventas_list, ignore_index=True) if df_ventas_list else None
+    df_compras = pd.concat(df_compras_list, ignore_index=True) if df_compras_list else None
+    
+    return df_ventas, df_compras
 
-if compras_file:
-    compras_df = pd.read_csv(compras_file)
-    # Convertir valores monetarios a numéricos
-    for col in ['Total Unitario', 'Total']:
-        compras_df[col] = pd.to_numeric(compras_df[col].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').fillna(0)
-    st.success("✅ Archivo de compras cargado correctamente")
-else:
-    compras_df = None
+def extraer_periodo(filename):
+    """Extrae el periodo (Q1, Q2, etc.) del nombre del archivo de ventas."""
+    match = re.search(r'q(\d)', filename, re.IGNORECASE)
+    return f'Q{match.group(1)}' if match else "Desconocido"
 
-# Visualización de Totales de Ventas
-if ventas_df is not None:
-    total_ventas = ventas_df['Total ajustado'].sum()
-    st.metric(label="Total de Ventas Globales", value=f"${total_ventas:,.0f}")
-    ventas_por_punto = ventas_df[['Samaria', 'Playa Dormida', 'Two Towers']].sum()
-    st.bar_chart(ventas_por_punto)
+def limpiar_monto(valor):
+    """Convierte valores monetarios a float, eliminando caracteres no numéricos."""
+    if isinstance(valor, str):
+        valor = valor.replace("$", "").replace(",", "").strip()
+        return float(valor) if valor.replace(".", "").isdigit() else None
+    return valor
 
-# Comparación de Compras vs Ventas
-if ventas_df is not None and compras_df is not None:
-    st.subheader("📊 Comparación de Ventas vs Compras")
-    compras_resumen = compras_df.groupby("Producto")["Total"].sum().reset_index()
-    ventas_compras = ventas_df[['Producto', 'Total ajustado']].merge(compras_resumen, on='Producto', how='left')
-    ventas_compras.fillna(0, inplace=True)
-    st.dataframe(ventas_compras)
+def procesar_datos(df_ventas, df_compras):
+    """Limpia y une datos de ventas y compras."""
+    if df_ventas is None or df_compras is None:
+        return None
+    
+    df_ventas.rename(columns={"Nombre": "producto"}, inplace=True)
+    df_compras.rename(columns={"Producto": "producto"}, inplace=True)
+    
+    # Limpiar datos numéricos
+    for col in ["Precio", "Total"]:
+        df_compras[col] = df_compras[col].apply(limpiar_monto)
+    for col in ["Ganancia", "Costo"]:
+        df_ventas[col] = df_ventas[col].apply(limpiar_monto)
+    
+    df_compras.dropna(subset=["Precio", "Total"], inplace=True)
+    df_ventas.dropna(subset=["Ganancia", "Costo"], inplace=True)
+    
+    # Unir datos
+    df_merged = pd.merge(df_ventas, df_compras, on="producto", how="left")
+    df_merged["Margen Real"] = (df_merged["Ganancia"] / df_merged["Costo"]) * 100
+    return df_merged
 
-# Predicción de Ventas
-if ventas_df is not None:
-    st.subheader("📈 Predicción de Ventas con Prophet")
-    producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
-    datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
-    df_pred = pd.DataFrame({
-        "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
-        "y": [datos_producto["Total ajustado"].sum()] * 7
-    })
-    modelo = Prophet()
-    modelo.fit(df_pred)
-    futuro = modelo.make_future_dataframe(periods=7)
-    pronostico = modelo.predict(futuro)
-    fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
-    st.plotly_chart(fig_forecast)
+def mostrar_dashboard(df):
+    """Visualización interactiva"""
+    st.sidebar.header("Filtros")
+    categoria = st.sidebar.selectbox("Selecciona una Categoría", df["Categoria"].dropna().unique())
+    periodo = st.sidebar.selectbox("Selecciona un Periodo", df["Periodo"].unique())
+    df_filtrado = df[(df["Categoria"] == categoria) & (df["Periodo"] == periodo)]
+    
+    # KPI's principales
+    st.metric("Ventas Totales", f"${df_filtrado['Total ajustado'].sum():,.2f}")
+    st.metric("Margen Bruto Promedio", f"{df_filtrado['Margen Real'].mean():.2f}%")
+    
+    # Gráficos
+    fig = px.bar(df_filtrado, x="producto", y="Total ajustado", title="Ventas por Producto")
+    st.plotly_chart(fig)
+    
+    fig2 = px.line(df_filtrado, x="Fecha", y="Total ajustado", title="Tendencia de Ventas")
+    st.plotly_chart(fig2)
+    
+    st.dataframe(df_filtrado)
 
-st.sidebar.info("Desarrollado con 💡 por IA para la optimización de negocios.")
+def main():
+    st.title("Reporte Gerencial de Ventas y Compras")
+    df_ventas, df_compras = cargar_datos()
+    
+    if df_ventas is not None and df_compras is not None:
+        df_procesado = procesar_datos(df_ventas, df_compras)
+        if df_procesado is not None:
+            mostrar_dashboard(df_procesado)
+        else:
+            st.error("Error en el procesamiento de datos.")
+    else:
+        st.warning("Por favor, sube los archivos de ventas y compras.")
+
+if __name__ == "__main__":
+    main()
