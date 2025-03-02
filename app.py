@@ -71,9 +71,8 @@ st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}"
 st.subheader("📊 Comparación de Ventas vs Compras")
 if compras_df is not None:
     compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
-    ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
-    ventas_compras.fillna("Sin datos", inplace=True)
-    st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario"]])
+    compras_df = compras_df[["Producto", "Total unitario"]]
+    st.dataframe(compras_df)
 
 # Indicadores Financieros
 st.subheader("📊 Indicadores Financieros")
