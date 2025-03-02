@@ -94,8 +94,14 @@ if compras_df is not None:
 
 # Indicadores Financieros
 st.subheader("📊 Indicadores Financieros")
+ventas_df["Ventas Prorrateadas"] = pd.to_numeric(ventas_df["Ventas Prorrateadas"], errors='coerce').fillna(0)
+ventas_df["Costo"] = pd.to_numeric(ventas_df["Costo"], errors='coerce').fillna(0)
+if ventas_df["Ventas Prorrateadas"].sum() > 0:
+    margen_bruto = (ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100
+else:
+    margen_bruto = 0
 indicadores_df = pd.DataFrame({
-    "Margen Bruto (%)": [(ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100],
+    "Margen Bruto (%)": [margen_bruto],
     "EBITDA (%)": [10],  # Ejemplo de dato fijo
     "ROI (%)": [15]  # Ejemplo de dato fijo
 })
