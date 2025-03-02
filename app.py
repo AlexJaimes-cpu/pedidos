@@ -57,6 +57,11 @@ st.subheader("📊 Totales de Ventas")
 total_ventas_global = ventas_df["Total ajustado"].sum()
 st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
 
+# Total de ventas por punto de venta
+ventas_punto_venta = ventas_df[['Samaria', 'Playa Dormida', 'Two Towers']].sum()
+st.subheader("📍 Total de Ventas por Punto de Venta")
+st.dataframe(ventas_punto_venta)
+
 # Comparación de Ventas vs Compras
 st.subheader("📊 Comparación de Ventas vs Compras")
 if compras_df is not None:
