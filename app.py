@@ -49,6 +49,12 @@ ventas_df.rename(columns={
     'Market Two Towers Vendido': 'Two Towers'
 }, inplace=True)
 
+# Validación de columnas de puntos de venta para evitar errores
+puntos_venta = ['Samaria', 'Playa Dormida', 'Two Towers']
+for punto in puntos_venta:
+    if punto not in ventas_df.columns:
+        ventas_df[punto] = 0  # Si la columna no existe, crearla con valores en 0
+
 # Convertir Total ajustado a numérico
 ventas_df['Total ajustado'] = pd.to_numeric(ventas_df['Total ajustado'], errors='coerce').fillna(0)
 
@@ -58,7 +64,7 @@ total_ventas_global = ventas_df["Total ajustado"].sum()
 st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
 
 # Total de ventas por punto de venta
-ventas_punto_venta = ventas_df[['Samaria', 'Playa Dormida', 'Two Towers']].sum()
+ventas_punto_venta = ventas_df[puntos_venta].sum()
 st.subheader("📍 Total de Ventas por Punto de Venta")
 st.dataframe(ventas_punto_venta)
 
