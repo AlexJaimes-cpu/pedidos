@@ -45,13 +45,18 @@ if ventas_df is not None:
     total_ventas = ventas_df['Total ajustado'].sum()
     st.metric(label="Total de Ventas Globales", value=f"${total_ventas:,.0f}")
     ventas_por_punto = ventas_df[['Samaria', 'Playa Dormida', 'Two Towers']].sum()
-    st.bar_chart(ventas_por_punto)
+    fig = px.bar(x=ventas_por_punto.index, y=ventas_por_punto.values, labels={'x': 'Punto de Venta', 'y': 'Total Ventas'},
+                 title="Total de Ventas por Punto de Venta", text=ventas_por_punto.values)
+    fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
+    st.plotly_chart(fig)
     
     # Mostrar datos de ventas por cada punto de venta
     st.subheader("📍 Ventas por Punto de Venta")
     for punto in ['Samaria', 'Playa Dormida', 'Two Towers']:
         st.write(f"### {punto}")
-        ventas_punto_df = ventas_df[['Producto', punto]].groupby('Producto').sum().reset_index()
+        ventas_punto_df = ventas_df[['Producto', punto, 'Ganancia']].groupby('Producto').sum().reset_index()
+        ventas_punto_df = ventas_punto_df.sort_values(by=punto, ascending=False)
+        ventas_punto_df['Ganancia en COP'] = ventas_punto_df['Ganancia'].apply(lambda x: f"${x:,.0f}")
         st.dataframe(ventas_punto_df)
 
 # Comparación de Compras vs Ventas
