@@ -58,6 +58,12 @@ for punto in puntos_venta:
 # Convertir Total ajustado a numérico
 ventas_df['Total ajustado'] = pd.to_numeric(ventas_df['Total ajustado'], errors='coerce').fillna(0)
 
+# Mostrar información para depuración
+st.subheader("🔍 Verificación de Datos Cargados")
+st.write("Primeras filas de ventas_df:", ventas_df.head())
+st.write("Total ajustado (suma de ventas):", ventas_df["Total ajustado"].sum())
+st.write("Ventas por punto de venta:", ventas_df[puntos_venta].sum())
+
 # Tablero de Ventas
 st.subheader("📊 Totales de Ventas")
 total_ventas_global = ventas_df["Total ajustado"].sum()
