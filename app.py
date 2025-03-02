@@ -45,6 +45,7 @@ if ventas_df is not None:
     total_ventas = ventas_df['Total ajustado'].sum()
     st.metric(label="Total de Ventas Globales", value=f"${total_ventas:,.0f}")
     ventas_por_punto = ventas_df[['Samaria', 'Playa Dormida', 'Two Towers']].sum()
+    
     fig = px.bar(x=ventas_por_punto.index, y=ventas_por_punto.values, labels={'x': 'Punto de Venta', 'y': 'Total Ventas'},
                  title="Total de Ventas por Punto de Venta", text=ventas_por_punto.values)
     fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
