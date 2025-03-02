@@ -68,11 +68,7 @@ if ventas_df is not None:
     if compras_df is not None:
         compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
      
-    # Indicadores Financieros
-    st.subheader("📊 Indicadores Financieros")
-    margen_bruto = (ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100
-    st.metric(label="Margen Bruto (%)", value=f"{margen_bruto:.2f}%")
-    
+
     # Predicción de Ventas
     st.subheader("📈 Predicción de Ventas con Prophet")
     producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
