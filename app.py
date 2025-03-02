@@ -9,24 +9,25 @@ st.title("📊 Reporte Gerencial Interactivo")
 
 # Cargar Datos
 st.sidebar.header("📂 Carga de Datos")
-ventas_file = st.sidebar.file_uploader("Subir Archivo de Ventas (CSV)", type=["csv"], accept_multiple_files=False)
+ventas_files = st.sidebar.file_uploader("Subir Archivos de Ventas (CSV)", type=["csv"], accept_multiple_files=True)
 compras_file = st.sidebar.file_uploader("Subir Archivo de Compras (CSV)", type=["csv"], accept_multiple_files=False)
 
-if ventas_file:
-    ventas_df = pd.read_csv(ventas_file)
-    # Renombrar columnas
-    ventas_df.rename(columns={
-        'market samaria Vendido': 'Samaria',
-        'market playa dormida Vendido': 'Playa Dormida',
-        'market two towers Vendido': 'Two Towers',
-        'Nombre': 'Producto'
-    }, inplace=True)
-    
-    # Convertir columnas financieras a numéricas
-    for col in ['Total ajustado', 'Costo', 'Ganancia']:
-        ventas_df[col] = pd.to_numeric(ventas_df[col].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').fillna(0)
-    
-    st.success("✅ Archivo de ventas cargado correctamente")
+ventas_df_list = []
+if ventas_files:
+    for ventas_file in ventas_files:
+        df_temp = pd.read_csv(ventas_file)
+        df_temp.rename(columns={
+            'market samaria Vendido': 'Samaria',
+            'market playa dormida Vendido': 'Playa Dormida',
+            'market two towers Vendido': 'Two Towers',
+            'Nombre': 'Producto'
+        }, inplace=True)
+        # Convertir columnas financieras a numéricas
+        for col in ['Total ajustado', 'Costo', 'Ganancia']:
+            df_temp[col] = pd.to_numeric(df_temp[col].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce').fillna(0)
+        ventas_df_list.append(df_temp)
+    ventas_df = pd.concat(ventas_df_list, ignore_index=True)
+    st.success("✅ Archivos de ventas cargados y acumulados correctamente")
 else:
     ventas_df = None
 
@@ -45,6 +46,13 @@ if ventas_df is not None:
     st.metric(label="Total de Ventas Globales", value=f"${total_ventas:,.0f}")
     ventas_por_punto = ventas_df[['Samaria', 'Playa Dormida', 'Two Towers']].sum()
     st.bar_chart(ventas_por_punto)
+    
+    # Mostrar datos de ventas por cada punto de venta
+    st.subheader("📍 Ventas por Punto de Venta")
+    for punto in ['Samaria', 'Playa Dormida', 'Two Towers']:
+        st.write(f"### {punto}")
+        ventas_punto_df = ventas_df[['Producto', punto]].groupby('Producto').sum().reset_index()
+        st.dataframe(ventas_punto_df)
 
 # Comparación de Compras vs Ventas
 if ventas_df is not None and compras_df is not None:
