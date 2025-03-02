@@ -36,36 +36,53 @@ if compras_files:
 else:
     compras_df = None
 
-# Verificar que 'Nombre' existe en ventas_df
+# Limpieza y Transformación de Datos
 if ventas_df is not None:
-    if 'Nombre' not in ventas_df.columns:
-        st.error("⚠️ Error: La columna 'Nombre' no existe en los datos de ventas. Verifique el archivo CSV.")
-        ventas_df = None
+    ventas_df.rename(columns={
+        'Nombre': 'Producto',
+        'market samaria Vendido': 'Samaria',
+        'market playa dormida Vendido': 'Playa Dormida',
+        'market two towers Vendido': 'Two Towers'
+    }, inplace=True)
+    numeric_cols = ['Samaria', 'Playa Dormida', 'Two Towers', 'Total ajustado', 'Costo', 'Ganancia']
+    for col in numeric_cols:
+        ventas_df[col] = ventas_df[col].astype(str).str.replace(r'[^\d-]', '', regex=True).astype(float)
+    ventas_df[['Costo', 'Ganancia']] = ventas_df[['Ganancia', 'Costo']]
+    ventas_df['Ventas Promedio Diario'] = ventas_df['Total ajustado'] / 90  # Prorratear ventas en 90 días
 
-# Selección de Filtros
+# Tablero de Ventas
 if ventas_df is not None:
-    st.sidebar.subheader("📅 Selección de Rango de Fechas")
-    dias_filtro = st.sidebar.slider("Número de días a analizar", min_value=7, max_value=90, value=30)
-
-    productos_seleccionados = st.sidebar.multiselect("Seleccionar Productos", ventas_df["Nombre"].unique())
-    puntos_venta_seleccionados = st.sidebar.multiselect("Seleccionar Puntos de Venta", ["Samaria", "Playa Dormida", "Two Towers"], default=["Samaria", "Playa Dormida", "Two Towers"])
+    st.subheader("📊 Análisis de Ventas")
+    filtro_punto_venta = st.selectbox("Filtrar por Punto de Venta", ["Todos", "Samaria", "Playa Dormida", "Two Towers"])
+    filtro_proveedor = st.selectbox("Filtrar por Proveedor", ["Todos"] + list(compras_df["Proveedor"].unique()) if compras_df is not None else ["Todos"])
     
-    # Aplicar Filtros
-    if productos_seleccionados:
-        ventas_df = ventas_df[ventas_df["Nombre"].isin(productos_seleccionados)]
+    ventas_filtradas = ventas_df.copy()
+    if filtro_punto_venta != "Todos":
+        ventas_filtradas = ventas_filtradas[["Producto", filtro_punto_venta, "Total ajustado"]]
+    if filtro_proveedor != "Todos" and compras_df is not None:
+        ventas_filtradas = ventas_filtradas[ventas_filtradas["Producto"].isin(compras_df[compras_df["Proveedor"] == filtro_proveedor]["Producto"])]
     
-    # Ajustar ventas prorrateadas
-    ventas_df['Total ajustado'] = pd.to_numeric(ventas_df['Total ajustado'], errors='coerce').fillna(0)
-    ventas_df['Ventas Prorrateadas'] = ventas_df['Total ajustado'] / 90 * dias_filtro
-
-    # Mostrar KPI de Ventas Totales
-    total_ventas_global = ventas_df["Ventas Prorrateadas"].sum()
+    total_ventas_global = ventas_df["Total ajustado"].sum()
     st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
-
-    # Tablas por Punto de Venta
-    for punto in puntos_venta_seleccionados:
-        st.subheader(f"📊 Ventas en {punto}")
-        tabla_punto = ventas_df[["Nombre", punto, "Ventas Prorrateadas"]].groupby("Nombre").sum().reset_index()
-        st.dataframe(tabla_punto)
+    
+    total_ventas_punto = ventas_df[["Samaria", "Playa Dormida", "Two Towers"]].sum()
+    st.bar_chart(total_ventas_punto, use_container_width=True)
+    
+    top_10_productos = ventas_df.groupby("Producto")["Total ajustado"].sum().nlargest(10).reset_index()
+    st.dataframe(top_10_productos)
+    
+    st.subheader("📈 Pronóstico de Ventas por Producto")
+    producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
+    datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
+    df_pred = pd.DataFrame({
+        "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
+        "y": [datos_producto["Ventas Promedio Diario"].sum()] * 7
+    })
+    modelo = Prophet()
+    modelo.fit(df_pred)
+    futuro = modelo.make_future_dataframe(periods=7)
+    pronostico = modelo.predict(futuro)
+    fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
+    st.plotly_chart(fig_forecast)
 
 st.sidebar.info("Desarrollado con 💡 por IA para la optimización de negocios.")
