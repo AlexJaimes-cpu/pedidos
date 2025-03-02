@@ -37,13 +37,17 @@ if compras_files:
 else:
     compras_df = None
 
+# Verificación de datos cargados
+if ventas_df is None or ventas_df.empty:
+    st.error("⚠️ No se han cargado datos de ventas. Por favor, cargue un archivo válido.")
+    st.stop()
+
 # Ajuste de nombres de columnas en ventas
-if ventas_df is not None:
-    ventas_df.rename(columns={
-        'Market Samaria Vendido': 'Samaria',
-        'Market Playa Dormida Vendido': 'Playa Dormida',
-        'Market Two Towers Vendido': 'Two Towers'
-    }, inplace=True)
+ventas_df.rename(columns={
+    'Market Samaria Vendido': 'Samaria',
+    'Market Playa Dormida Vendido': 'Playa Dormida',
+    'Market Two Towers Vendido': 'Two Towers'
+}, inplace=True)
 
 # Función para calcular ventas prorrateadas
 def calcular_ventas_prorrateadas(df, dias):
@@ -55,44 +59,40 @@ def calcular_ventas_prorrateadas(df, dias):
 st.sidebar.subheader("📅 Selección de Rango de Fechas")
 dias_filtro = st.sidebar.slider("Número de días a analizar", min_value=7, max_value=90, value=30)
 
+# Aplicar cálculos
+ventas_df = calcular_ventas_prorrateadas(ventas_df, dias_filtro)
+
 # Tablero de Ventas
-if ventas_df is not None:
-    ventas_df = calcular_ventas_prorrateadas(ventas_df, dias_filtro)
-    
-    st.subheader("📊 Totales de Ventas")
-    total_ventas_global = ventas_df["Ventas Prorrateadas"].sum()
-    st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
-    
-    # Comparación de Ventas vs Compras
-    st.subheader("📊 Comparación de Ventas vs Compras")
-    if compras_df is not None:
-        compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
-     
+st.subheader("📊 Totales de Ventas")
+total_ventas_global = ventas_df["Ventas Prorrateadas"].sum()
+st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
 
-    # Predicción de Ventas
-    st.subheader("📈 Predicción de Ventas con Prophet")
-    producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
-    datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
-    df_pred = pd.DataFrame({
-        "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
-        "y": [datos_producto["Ventas Prorrateadas"].sum()] * 7
-    })
-    modelo = Prophet()
-    modelo.fit(df_pred)
-    futuro = modelo.make_future_dataframe(periods=7)
-    pronostico = modelo.predict(futuro)
-    fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
-    st.plotly_chart(fig_forecast)
+# Comparación de Ventas vs Compras
+st.subheader("📊 Comparación de Ventas vs Compras")
+if compras_df is not None:
+    compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
+    ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
+    ventas_compras.fillna("Sin datos", inplace=True)
+    st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario"]])
 
-    # Selector de Modelos
-    st.subheader("🔄 Comparación de Modelos de Predicción")
-    modelo_seleccionado = st.selectbox("Seleccione un Modelo", ["Prophet", "ARIMA", "XGBoost", "Regresión Lineal"])
-    modelo_descripcion = {
-        "Prophet": "Modelo de predicción de series temporales que identifica tendencias y estacionalidad.",
-        "ARIMA": "Modelo basado en promedios móviles e integración para predecir series temporales.",
-        "XGBoost": "Modelo de aprendizaje automático basado en boosting para predicción precisa.",
-        "Regresión Lineal": "Modelo estadístico simple para predecir valores basados en tendencias lineales."
-    }
-    st.write(modelo_descripcion[modelo_seleccionado])
+# Indicadores Financieros
+st.subheader("📊 Indicadores Financieros")
+margen_bruto = (ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100
+st.metric(label="Margen Bruto (%)", value=f"{margen_bruto:.2f}%")
+
+# Predicción de Ventas
+st.subheader("📈 Predicción de Ventas con Prophet")
+producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
+datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
+df_pred = pd.DataFrame({
+    "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
+    "y": [datos_producto["Ventas Prorrateadas"].sum()] * 7
+})
+modelo = Prophet()
+modelo.fit(df_pred)
+futuro = modelo.make_future_dataframe(periods=7)
+pronostico = modelo.predict(futuro)
+fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
+st.plotly_chart(fig_forecast)
 
 st.sidebar.info("Desarrollado con 💡 por IA para la optimización de negocios.")
