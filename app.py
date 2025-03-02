@@ -23,6 +23,7 @@ if ventas_files:
         df_temp['Trimestre'] = ventas_file.name.split(' ')[-1].split('.')[0]  # Detectar el trimestre desde el nombre del archivo
         ventas_df_list.append(df_temp)
     ventas_df = pd.concat(ventas_df_list, ignore_index=True)
+    ventas_df.rename(columns={'Nombre': 'Producto'}, inplace=True)  # Asegurar que siempre se use 'Producto'
 else:
     ventas_df = None
 
@@ -36,7 +37,20 @@ if compras_files:
 else:
     compras_df = None
 
-# Ajuste de nombres de columnas
+# Verificación si ventas_df está vacío
+def check_ventas_df():
+    if ventas_df is None or ventas_df.empty:
+        st.warning("⚠️ No se han cargado datos de ventas. ¿Qué desea hacer?")
+        accion = st.radio("Seleccione una acción:", ["Reintentar", "Continuar sin datos", "Cerrar aplicación"])
+        if accion == "Reintentar":
+            st.experimental_rerun()
+        elif accion == "Cerrar aplicación":
+            st.stop()
+
+# Ejecutar verificación
+check_ventas_df()
+
+# Ajuste de nombres de columnas en ventas
 if ventas_df is not None:
     ventas_df.rename(columns={
         'Market Samaria Vendido': 'Samaria',
