@@ -49,22 +49,12 @@ ventas_df.rename(columns={
     'Market Two Towers Vendido': 'Two Towers'
 }, inplace=True)
 
-# Función para calcular ventas prorrateadas
-def calcular_ventas_prorrateadas(df, dias):
-    df['Total ajustado'] = pd.to_numeric(df['Total ajustado'], errors='coerce').fillna(0)
-    df['Ventas Prorrateadas'] = df['Total ajustado'] / 90 * dias
-    return df
-
-# Selección de rango de fechas
-st.sidebar.subheader("📅 Selección de Rango de Fechas")
-dias_filtro = st.sidebar.slider("Número de días a analizar", min_value=7, max_value=90, value=30)
-
-# Aplicar cálculos
-ventas_df = calcular_ventas_prorrateadas(ventas_df, dias_filtro)
+# Convertir Total ajustado a numérico
+ventas_df['Total ajustado'] = pd.to_numeric(ventas_df['Total ajustado'], errors='coerce').fillna(0)
 
 # Tablero de Ventas
 st.subheader("📊 Totales de Ventas")
-total_ventas_global = ventas_df["Ventas Prorrateadas"].sum()
+total_ventas_global = ventas_df["Total ajustado"].sum()
 st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
 
 # Comparación de Ventas vs Compras
@@ -75,11 +65,10 @@ if compras_df is not None:
 
 # Indicadores Financieros
 st.subheader("📊 Indicadores Financieros")
-ventas_df["Ventas Prorrateadas"] = pd.to_numeric(ventas_df["Ventas Prorrateadas"], errors='coerce').fillna(0)
 ventas_df["Costo"] = pd.to_numeric(ventas_df["Costo"], errors='coerce').fillna(0)
 
-if ventas_df["Ventas Prorrateadas"].sum() > 0:
-    margen_bruto = (ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100
+if ventas_df["Total ajustado"].sum() > 0:
+    margen_bruto = (ventas_df["Total ajustado"].sum() - ventas_df["Costo"].sum()) / ventas_df["Total ajustado"].sum() * 100
 else:
     margen_bruto = 0
 st.metric(label="Margen Bruto (%)", value=f"{margen_bruto:.2f}%")
@@ -90,7 +79,7 @@ producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", 
 datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
 df_pred = pd.DataFrame({
     "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
-    "y": [datos_producto["Ventas Prorrateadas"].sum()] * 7
+    "y": [datos_producto["Total ajustado"].sum()] * 7
 })
 modelo = Prophet()
 modelo.fit(df_pred)
