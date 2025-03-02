@@ -84,10 +84,13 @@ for punto in punto_venta_seleccionado:
 st.subheader("📊 Comparación de Ventas vs Compras")
 if compras_df is not None:
     compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
-    ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
-    ventas_compras["Compras No Disponibles"] = ventas_compras["Total unitario"].isna()
-    ventas_compras.fillna("Compras No Disponibles", inplace=True)
-    st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario"]])
+    if "Total unitario" in compras_df.columns:
+        ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
+        ventas_compras["Compras No Disponibles"] = ventas_compras["Total unitario"].isna()
+        ventas_compras.fillna("Compras No Disponibles", inplace=True)
+        st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario"]])
+    else:
+        st.warning("⚠️ La columna 'Total unitario' no existe en el archivo de compras.")
 
 # Indicadores Financieros
 st.subheader("📊 Indicadores Financieros")
