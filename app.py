@@ -44,19 +44,28 @@ else:
 if ventas_df is not None:
     total_ventas = ventas_df['Total ajustado'].sum()
     st.metric(label="Total de Ventas Globales", value=f"${total_ventas:,.0f}")
-    ventas_por_punto = ventas_df[['Samaria', 'Playa Dormida', 'Two Towers']].sum()
+    
+    # Filtrar ventas por punto de venta desde Total Ajustado
+    ventas_por_punto = pd.DataFrame({
+        'Punto de Venta': ['Samaria', 'Playa Dormida', 'Two Towers'],
+        'Total Ventas': [
+            ventas_df.loc[ventas_df['Samaria'] > 0, 'Total ajustado'].sum(),
+            ventas_df.loc[ventas_df['Playa Dormida'] > 0, 'Total ajustado'].sum(),
+            ventas_df.loc[ventas_df['Two Towers'] > 0, 'Total ajustado'].sum()
+        ]
+    })
     
     # Agregar tarjetas con total de ventas por punto de venta y porcentaje
     col1, col2, col3 = st.columns(3)
-    for i, punto in enumerate(['Samaria', 'Playa Dormida', 'Two Towers']):
+    for i, row in ventas_por_punto.iterrows():
         with [col1, col2, col3][i]:
-            total_punto = ventas_por_punto[punto]
+            total_punto = row['Total Ventas']
             porcentaje = (total_punto / total_ventas) * 100 if total_ventas > 0 else 0
-            st.metric(label=f"Total Ventas {punto}", value=f"${total_punto:,.0f}", delta=f"{porcentaje:.2f}% del total")
+            st.metric(label=f"Total Ventas {row['Punto de Venta']}", value=f"${total_punto:,.0f}", delta=f"{porcentaje:.2f}% del total")
     
     # Gráfico de ventas acumuladas por punto de venta
-    fig = px.bar(x=ventas_por_punto.index, y=ventas_por_punto.values, labels={'x': 'Punto de Venta', 'y': 'Total Ventas'},
-                 title="Total de Ventas por Punto de Venta", text=ventas_por_punto.values)
+    fig = px.bar(ventas_por_punto, x='Punto de Venta', y='Total Ventas', labels={'Total Ventas': 'Total Ventas'},
+                 title="Total de Ventas por Punto de Venta", text='Total Ventas')
     fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
     st.plotly_chart(fig)
     
