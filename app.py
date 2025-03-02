@@ -37,26 +37,17 @@ if compras_files:
 else:
     compras_df = None
 
-# Verificación si ventas_df está vacío
-def check_ventas_df():
-    if ventas_df is None or ventas_df.empty:
-        st.warning("⚠️ No se han cargado datos de ventas. ¿Qué desea hacer?")
-        accion = st.radio("Seleccione una acción:", ["Reintentar", "Continuar sin datos", "Cerrar aplicación"])
-        if accion == "Reintentar":
-            st.experimental_rerun()
-        elif accion == "Cerrar aplicación":
-            st.stop()
-
-# Ejecutar verificación
-check_ventas_df()
+# Verificación de datos cargados
+if ventas_df is None or ventas_df.empty:
+    st.error("⚠️ No se han cargado datos de ventas. Por favor, cargue un archivo válido.")
+    st.stop()
 
 # Ajuste de nombres de columnas en ventas
-if ventas_df is not None:
-    ventas_df.rename(columns={
-        'Market Samaria Vendido': 'Samaria',
-        'Market Playa Dormida Vendido': 'Playa Dormida',
-        'Market Two Towers Vendido': 'Two Towers'
-    }, inplace=True)
+ventas_df.rename(columns={
+    'Market Samaria Vendido': 'Samaria',
+    'Market Playa Dormida Vendido': 'Playa Dormida',
+    'Market Two Towers Vendido': 'Two Towers'
+}, inplace=True)
 
 # Función para calcular ventas prorrateadas
 def calcular_ventas_prorrateadas(df, dias):
@@ -68,56 +59,58 @@ def calcular_ventas_prorrateadas(df, dias):
 st.sidebar.subheader("📅 Selección de Filtros")
 dias_filtro = st.sidebar.slider("Número de días a analizar", min_value=7, max_value=90, value=30)
 punto_venta_seleccionado = st.sidebar.multiselect("Seleccionar Puntos de Venta", ["Samaria", "Playa Dormida", "Two Towers"], default=["Samaria", "Playa Dormida", "Two Towers"])
-productos_seleccionados = st.sidebar.multiselect("Seleccionar Productos", ventas_df["Producto"].unique() if ventas_df is not None else [])
+productos_seleccionados = st.sidebar.multiselect("Seleccionar Productos", ventas_df["Producto"].unique())
 
 # Aplicar Filtros
-if ventas_df is not None:
-    ventas_df = calcular_ventas_prorrateadas(ventas_df, dias_filtro)
-    if productos_seleccionados:
-        ventas_df = ventas_df[ventas_df["Producto"].isin(productos_seleccionados)]
+ventas_df = calcular_ventas_prorrateadas(ventas_df, dias_filtro)
+if productos_seleccionados:
+    ventas_df = ventas_df[ventas_df["Producto"].isin(productos_seleccionados)]
 
-    # KPI Totales
-    st.subheader("📊 Totales de Ventas")
-    total_ventas_global = ventas_df["Ventas Prorrateadas"].sum()
-    st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
+# KPI Totales
+st.subheader("📊 Totales de Ventas")
+total_ventas_global = ventas_df["Ventas Prorrateadas"].sum()
+st.metric(label="Total de Ventas Globales", value=f"${total_ventas_global:,.0f}")
 
-    # Tablas por Punto de Venta
-    for punto in punto_venta_seleccionado:
-        st.subheader(f"📊 Ventas en {punto}")
+# Tablas por Punto de Venta
+for punto in punto_venta_seleccionado:
+    st.subheader(f"📊 Ventas en {punto}")
+    if punto in ventas_df.columns:
         tabla_punto = ventas_df[["Producto", punto, "Ventas Prorrateadas"]].groupby("Producto").sum().reset_index()
         st.dataframe(tabla_punto)
-    
-    # Comparación de Ventas vs Compras
-    st.subheader("📊 Comparación de Ventas vs Compras")
-    if compras_df is not None:
-        compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
-        ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
-        ventas_compras["Compras No Disponibles"] = ventas_compras["Total unitario"].isna()
-        ventas_compras.fillna("Compras No Disponibles", inplace=True)
-        st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario"]])
-    
-    # Indicadores Financieros
-    st.subheader("📊 Indicadores Financieros")
-    indicadores_df = pd.DataFrame({
-        "Margen Bruto (%)": [(ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100],
-        "EBITDA (%)": [10],  # Ejemplo de dato fijo
-        "ROI (%)": [15]  # Ejemplo de dato fijo
-    })
-    st.dataframe(indicadores_df)
-    
-    # Predicción de Ventas
-    st.subheader("📈 Predicción de Ventas con Prophet")
-    producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
-    datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
-    df_pred = pd.DataFrame({
-        "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
-        "y": [datos_producto["Ventas Prorrateadas"].sum()] * 7
-    })
-    modelo = Prophet()
-    modelo.fit(df_pred)
-    futuro = modelo.make_future_dataframe(periods=7)
-    pronostico = modelo.predict(futuro)
-    fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
-    st.plotly_chart(fig_forecast)
+    else:
+        st.warning(f"⚠️ No hay datos disponibles para {punto}.")
+
+# Comparación de Ventas vs Compras
+st.subheader("📊 Comparación de Ventas vs Compras")
+if compras_df is not None:
+    compras_df.rename(columns={'Nombre': 'Producto'}, inplace=True)
+    ventas_compras = ventas_df.merge(compras_df, on="Producto", how="left")
+    ventas_compras["Compras No Disponibles"] = ventas_compras["Total unitario"].isna()
+    ventas_compras.fillna("Compras No Disponibles", inplace=True)
+    st.dataframe(ventas_compras[["Producto", "Ventas Prorrateadas", "Total unitario"]])
+
+# Indicadores Financieros
+st.subheader("📊 Indicadores Financieros")
+indicadores_df = pd.DataFrame({
+    "Margen Bruto (%)": [(ventas_df["Ventas Prorrateadas"].sum() - ventas_df["Costo"].sum()) / ventas_df["Ventas Prorrateadas"].sum() * 100],
+    "EBITDA (%)": [10],  # Ejemplo de dato fijo
+    "ROI (%)": [15]  # Ejemplo de dato fijo
+})
+st.dataframe(indicadores_df)
+
+# Predicción de Ventas
+st.subheader("📈 Predicción de Ventas con Prophet")
+producto_seleccionado = st.selectbox("Selecciona un Producto para Pronóstico", ventas_df["Producto"].unique())
+datos_producto = ventas_df[ventas_df["Producto"] == producto_seleccionado]
+df_pred = pd.DataFrame({
+    "ds": pd.date_range(start=pd.to_datetime("today") + pd.Timedelta(days=1), periods=7, freq='D'),
+    "y": [datos_producto["Ventas Prorrateadas"].sum()] * 7
+})
+modelo = Prophet()
+modelo.fit(df_pred)
+futuro = modelo.make_future_dataframe(periods=7)
+pronostico = modelo.predict(futuro)
+fig_forecast = px.line(pronostico, x="ds", y="yhat", title=f"Pronóstico de Ventas para {producto_seleccionado}")
+st.plotly_chart(fig_forecast)
 
 st.sidebar.info("Desarrollado con 💡 por IA para la optimización de negocios.")
